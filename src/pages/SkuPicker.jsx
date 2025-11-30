@@ -1,11 +1,9 @@
-
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { parseColorText, colorDistance, parseStock } from '@/components/sku/SkuUtils';
-import { KnowledgeBase } from '@/entities/KnowledgeBase';
-import { Palette, Upload, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { useProductData } from '@/components/context/ProductDataContext';
+import { Palette, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/glass-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/glass-card';
-import { Badge } from '@/components/ui/glass-badge';
 import { ColorSwatch } from '@/components/ui/color-swatch';
 import { ResultItem } from '@/components/ui/result-item';
 
@@ -157,34 +155,10 @@ export default function SkuPickerPage() {
   const [isDetectingColor, setIsDetectingColor] = useState(false);
   const [error, setError] = useState('');
   const [isDragActive, setIsDragActive] = useState(false);
-  const [feedData, setFeedData] = useState(null);
   const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    loadBotFeedData();
-  }, []);
-
-  const loadBotFeedData = async () => {
-    try {
-      // Получаем XML-фид из базы знаний (BOT FEED)
-      const knowledgeItems = await KnowledgeBase.filter({ 
-        type: 'xml_feed', 
-        is_ai_source: true 
-      });
-      
-      if (knowledgeItems.length > 0) {
-        const botFeed = knowledgeItems[0]; 
-        if (botFeed.xml_data?.products) {
-          setFeedData(botFeed.xml_data.products);
-        }
-      } else {
-        setError('BOT FEED не найден в базе знаний. Обратитесь к администратору.');
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки BOT FEED:', error);
-      setError('Ошибка загрузки данных фида.');
-    }
-  };
+  
+  // Используем глобальный контекст продуктов
+  const { products: feedData, loading: feedLoading } = useProductData();
 
   const handleFileDrop = useCallback(async (file) => {
     if (!file) return;
@@ -388,7 +362,7 @@ export default function SkuPickerPage() {
                 <Button 
                   variant="primary"
                   onClick={handleProcess} 
-                  disabled={isLoading || isDetectingColor || !dominantColor || !feedData} 
+                  disabled={isLoading || isDetectingColor || !dominantColor || feedLoading || !feedData?.length} 
                   className="w-full"
                   size="lg"
                 >
