@@ -1,6 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { User } from '@/entities/User';
+import { useUser } from '@/components/context/UserContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,40 +9,28 @@ import { useToast } from '@/components/ui/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function ProfileDetails() {
-  const [user, setUser] = useState(null);
+  const { user, loading: contextLoading, refreshUser } = useUser();
   const [formData, setFormData] = useState({
     full_name: '',
     phone_number: '',
     city: '',
     retail_point: ''
   });
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  // Sync form data when user changes
   useEffect(() => {
-    loadUser();
-  }, []);
-
-  const loadUser = async () => {
-    setLoading(true);
-    try {
-      const currentUser = await User.me();
-      setUser(currentUser);
-      // Prefer display_name if set, else fallback to full_name
-      const name = currentUser.display_name || currentUser.full_name || "";
+    if (user) {
+      const name = user.display_name || user.full_name || "";
       setFormData({
         full_name: name,
-        phone_number: currentUser.phone_number || '',
-        city: currentUser.city || '',
-        retail_point: currentUser.retail_point || ''
+        phone_number: user.phone_number || '',
+        city: user.city || '',
+        retail_point: user.retail_point || ''
       });
-    } catch (error) {
-      console.error("Failed to load user", error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [user]);
 
   const handleChange = (e) => {
     const { id, value } = e.target;
@@ -53,27 +41,24 @@ export default function ProfileDetails() {
     e.preventDefault();
     setSaving(true);
     try {
-      const currentUser = await User.me();
       // 1) Try to update built-in full_name (if allowed)
-      if (formData.full_name && formData.full_name !== (currentUser.full_name || "")) {
+      if (formData.full_name && formData.full_name !== (user?.full_name || "")) {
         try {
-          await User.update(currentUser.id, { full_name: formData.full_name });
+          await User.update(user.id, { full_name: formData.full_name });
         } catch (e) {
-          // Ignore if platform disallows updating built-in fields
           console.warn("full_name update skipped:", e?.message || e);
         }
       }
       // 2) Always store preferred display name + other profile fields
       await User.updateMyUserData({
-        display_name: formData.full_name, // This is the new part for display_name
+        display_name: formData.full_name,
         phone_number: formData.phone_number,
         city: formData.city,
         retail_point: formData.retail_point
       });
 
-      // Reload data in form
-      await loadUser();
-      // Notify the entire application
+      // Refresh user context
+      refreshUser();
       window.dispatchEvent(new CustomEvent('user-updated'));
       toast({
         title: "Успех!",
@@ -90,7 +75,7 @@ export default function ProfileDetails() {
     }
   };
 
-  if (loading) {
+  if (contextLoading || !user) {
     return (
       <Card className="bg-white/70 backdrop-blur-xl border-white/20 shadow-lg">
         <CardHeader>
