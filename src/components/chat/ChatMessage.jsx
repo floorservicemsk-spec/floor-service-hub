@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, Bot, ChevronDown, ChevronUp, Calculator, ListTree, Heart, Info, Percent, Archive, FileText } from "lucide-react";
@@ -348,7 +347,7 @@ const ProductInfoCard = ({ product }) => {
     return docs;
   })();
   
-  console.log('[ProductInfoCard] Parsed documents from params:', documents);
+
   
   // Группируем и объединяем некоторые параметры
   const getGroupedParams = () => {
@@ -430,7 +429,7 @@ const ProductInfoCard = ({ product }) => {
   // Check if we have documents
   const hasDocuments = documents.length > 0;
 
-  console.log('[ProductInfoCard] hasDocuments:', hasDocuments);
+
 
   return (
     <div className="bg-white min-h-full">
