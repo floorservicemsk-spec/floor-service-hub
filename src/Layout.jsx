@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -26,8 +25,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
-import { DealerProfile } from "@/entities/DealerProfile";
-import { BonusSettings } from "@/entities/BonusSettings";
+import { UserProvider, useUser } from "@/components/context/UserContext";
+import { ProductDataProvider } from "@/components/context/ProductDataContext";
 
 const navigationItems = [
   {
@@ -75,79 +74,22 @@ const adminItems = [
   }
 ];
 
-export default function Layout({ children, currentPageName }) {
+// Внутренний компонент Layout который использует контекст
+function LayoutContent({ children, currentPageName }) {
   const location = useLocation();
-  const [user, setUser] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [isBlocked, setIsBlocked] = React.useState(false);
-  const [needsApproval, setNeedsApproval] = React.useState(false);
-  const [dealerProfile, setDealerProfile] = React.useState(null);
-  const [bonusEnabled, setBonusEnabled] = React.useState(true);
+  const { 
+    user, 
+    dealerProfile, 
+    bonusEnabled, 
+    loading, 
+    isBlocked, 
+    needsApproval, 
+    isAdmin, 
+    displayName,
+    logout: handleLogout,
+    login: handleLogin
+  } = useUser();
 
-  React.useEffect(() => {
-    loadUser();
-    // Подписка на глобальные обновления профиля
-    // This event listener ensures that if profile data (like name) is updated elsewhere,
-    // the layout re-fetches user data to display the latest information.
-    const onUserUpdated = () => loadUser();
-    window.addEventListener('user-updated', onUserUpdated);
-    return () => window.removeEventListener('user-updated', onUserUpdated);
-  }, []);
-
-  const loadUser = async () => {
-    setLoading(true);
-    setIsBlocked(false);
-    setNeedsApproval(false);
-    try {
-      const currentUser = await UserEntity.me();
-      console.log("Loaded user:", currentUser);
-      // Load bonus settings early
-      try {
-        const bs = await BonusSettings.list();
-        setBonusEnabled(bs[0]?.enabled !== false);
-      } catch (_) {
-        setBonusEnabled(true);
-      }
-
-      if (currentUser.is_blocked) {
-        await UserEntity.logout();
-        setIsBlocked(true);
-        setUser(null);
-      } else if (!currentUser.is_approved && currentUser.role !== 'admin') {
-        setNeedsApproval(true);
-        setUser(currentUser);
-        if (!currentUser.approval_requested_at) {
-          await UserEntity.updateMyUserData({
-            approval_requested_at: new Date().toISOString()
-          });
-        }
-      } else {
-        setUser(currentUser);
-        if (currentUser.user_type === 'dealer') {
-          const prof = await DealerProfile.filter({ user_id: currentUser.id });
-          setDealerProfile(prof[0] || null);
-        } else {
-          setDealerProfile(null);
-        }
-      }
-    } catch (error) {
-      console.log("Пользователь не авторизован", error);
-      setUser(null);
-      setDealerProfile(null);
-    }
-    setLoading(false);
-  };
-
-  const handleLogout = async () => {
-    await UserEntity.logout();
-    setUser(null);
-  };
-
-  const handleLogin = async () => {
-    await UserEntity.login();
-  };
-
-  const isAdmin = user?.role === 'admin';
   const isHomePage = currentPageName === "HomeSplash";
 
   // Tier helpers
@@ -212,9 +154,6 @@ export default function Layout({ children, currentPageName }) {
 
   // Active icon color in sidebar should be theme blue
   const isActiveUrl = (url) => location.pathname === url;
-
-  // Helper to render name with display_name fallback
-  const displayName = (user?.display_name || user?.full_name || user?.email || 'Пользователь');
 
   if (loading) {
     return (
@@ -282,8 +221,6 @@ export default function Layout({ children, currentPageName }) {
       </div>
     );
   }
-
-  console.log("Rendering layout with user:", user);
 
   return (
     <SidebarProvider>
