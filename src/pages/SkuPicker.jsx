@@ -237,7 +237,7 @@ export default function SkuPickerPage() {
       setError('Сначала загрузите изображение, чтобы определить цвет.');
       return;
     }
-    if (!feedData) {
+    if (!feedData?.length) {
       setError('Данные фида не загружены.');
       return;
     }
