@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useLayoutEffect, useRef, Suspense } from "react";
 import { ChatSession } from "@/entities/ChatSession";
 import { User } from "@/entities/User";
@@ -9,10 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, RotateCcw, Loader2, ArrowDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useLocation } from "react-router-dom";
-import { DealerProfile } from "@/entities/DealerProfile";
-import { BonusSettings } from "@/entities/BonusSettings";
+import { useUser } from "@/components/context/UserContext";
+import { useProductData } from "@/components/context/ProductDataContext";
 
 const ChatMessage = React.lazy(() => import("../components/chat/ChatMessage"));
 const TypingIndicator = React.lazy(() => import("../components/chat/TypingIndicator"));
@@ -22,13 +20,12 @@ export default function ChatPage() {
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState(null);
-  const [user, setUser] = useState(null);
   const [aiKnowledgeBase, setAiKnowledgeBase] = useState([]);
   const [aiSettings, setAiSettings] = useState(null);
-  const [productIndex, setProductIndex] = useState(null); // Индекс для быстрого поиска товаров
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [dealerProfile, setDealerProfile] = useState(null);
-  const [bonusEnabled, setBonusEnabled] = useState(true);
+  
+  const { user, dealerProfile, bonusEnabled, effectiveTier } = useUser();
+  const { productIndex } = useProductData();
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -124,15 +121,12 @@ export default function ChatPage() {
     };
   }, []);
 
-  // NEW: react to global user updates (e.g., name changed in Profile)
+  // Reinitialize chat when user changes
   useEffect(() => {
-    const onUserUpdated = () => {
-      // Reinitialize user/dealer profile/bonus flags so OrderForm sees fresh data
+    if (user) {
       initializeChat();
-    };
-    window.addEventListener('user-updated', onUserUpdated);
-    return () => window.removeEventListener('user-updated', onUserUpdated);
-  }, []);
+    }
+  }, [user?.id]);
 
   // --- Scroll button visibility ---
   const handleScroll = () => {
@@ -141,50 +135,27 @@ export default function ChatPage() {
     setShowScrollButton(!isNearBottom());
   };
 
-  // --- Data layer (ваш исходный код ниже без функциональных изменений) ---
+  // --- Data layer ---
   const initializeChat = async () => {
+    if (!user) return;
+    
     try {
-      const currentUser = await User.me();
-      setUser(currentUser);
-      
-      // NEW: dealer profile + bonus flag
-      if (currentUser?.user_type === 'dealer') {
-        const prof = await DealerProfile.filter({ user_id: currentUser.id });
-        setDealerProfile(prof[0] || null);
-      } else {
-        setDealerProfile(null);
-      }
-      try {
-        const bs = await BonusSettings.list();
-        setBonusEnabled(bs[0]?.enabled !== false);
-      } catch (_) { setBonusEnabled(true); }
-      
-      let currentSessionId = currentUser.session_id;
+      let currentSessionId = user.session_id;
       if (!currentSessionId) {
         currentSessionId = generateSessionId();
         await User.updateMyUserData({ session_id: currentSessionId });
       }
       
       setSessionId(currentSessionId);
-      await loadChatHistory(currentSessionId);
-
-      const knowledgeItems = await KnowledgeBase.filter({ is_ai_source: true });
-      setAiKnowledgeBase(knowledgeItems);
       
-      const xmlFeedItem = knowledgeItems.find(item => item.type === 'xml_feed' && item.xml_data?.products);
-      if (xmlFeedItem) {
-        const index = new Map();
-        for (const product of xmlFeedItem.xml_data.products) {
-          if (product.vendorCode) {
-            const code = String(product.vendorCode).toLowerCase();
-            if (!index.has(code)) index.set(code, []);
-            index.get(code).push(product);
-          }
-        }
-        setProductIndex(index);
-      }
-
-      const settings = await AISettings.list();
+      // Параллельная загрузка истории чата, базы знаний и настроек
+      const [_, knowledgeItems, settings] = await Promise.all([
+        loadChatHistory(currentSessionId),
+        KnowledgeBase.filter({ is_ai_source: true }),
+        AISettings.list()
+      ]);
+      
+      setAiKnowledgeBase(knowledgeItems);
       if (settings.length > 0) setAiSettings(settings[0]);
 
     } catch (error) {
@@ -536,14 +507,6 @@ export default function ChatPage() {
     // После очистки — сразу к низу (на якорь)
     requestAnimationFrame(() => scrollToBottom(false));
   };
-
-  const effectiveTier = (() => {
-    if (!bonusEnabled) return null;
-    const now = new Date();
-    const manual = dealerProfile?.manual_tier_enabled && dealerProfile?.manual_tier &&
-      (!dealerProfile?.manual_tier_expires_at || new Date(dealerProfile.manual_tier_expires_at) > now);
-    return manual ? dealerProfile?.manual_tier : (dealerProfile?.current_tier || null);
-  })();
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative">

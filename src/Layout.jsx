@@ -556,7 +556,20 @@ function LayoutContent({ children, currentPageName }) {
         </main>
 
         <Toaster />
-      </div>
-    </SidebarProvider>
-  );
-}
+        </div>
+        </SidebarProvider>
+        );
+        }
+
+        // Главный экспорт с провайдерами
+        export default function Layout({ children, currentPageName }) {
+        return (
+        <UserProvider>
+        <ProductDataProvider>
+          <LayoutContent currentPageName={currentPageName}>
+            {children}
+          </LayoutContent>
+        </ProductDataProvider>
+        </UserProvider>
+        );
+        }

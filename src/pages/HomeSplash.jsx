@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,9 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { HomeBanner } from "@/entities/HomeBanner";
-import { User } from "@/entities/User";
-import { BonusSettings } from "@/entities/BonusSettings";
-import { DealerProfile } from "@/entities/DealerProfile";
+import { useUser } from "@/components/context/UserContext";
 import TierBadge from "@/components/dealers/TierBadge";
 import { preloadImage } from "@/components/utils/imageCache";
 import {
@@ -146,34 +143,10 @@ function Tile({ title, desc, icon: Icon, to }) {
 
 export default function HomeSplash() {
   const [banner, setBanner] = useState(null);
-  const [user, setUser] = useState(null);
-  const [dealerProfile, setDealerProfile] = useState(null);
-  const [bonusEnabled, setBonusEnabled] = useState(true);
+  const { user, dealerProfile, bonusEnabled } = useUser();
 
   useEffect(() => {
-    const load = async () => {
-      // Пользователь (для приветствия)
-      try {
-        const me = await User.me();
-        setUser(me);
-
-        // Если дилер — подтягиваем профиль и статус
-        if (me?.user_type === 'dealer') {
-          const prof = await DealerProfile.filter({ user_id: me.id });
-          setDealerProfile(prof[0] || null);
-        } else {
-          setDealerProfile(null);
-        }
-
-        // NEW: подтягиваем глобальный переключатель бонусной программы
-        const bs = await BonusSettings.list();
-        setBonusEnabled(bs[0]?.enabled !== false);
-      } catch (_) {
-        setUser(null);
-        setDealerProfile(null);
-        setBonusEnabled(true); // по умолчанию показываем, если не удалось загрузить
-      }
-
+    const loadBanner = async () => {
       // Баннер: активный по времени и isActive=true, с наибольшим приоритетом
       const all = await HomeBanner.filter({ isActive: true }, "-updated_date", 25);
       const now = new Date();
@@ -186,18 +159,13 @@ export default function HomeSplash() {
         .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))[0] || null;
 
       setBanner(pick);
+      
+      // Prefetch banner images
+      if (pick?.mediaUrl && pick?.mediaType === "image") {
+        preloadImage(pick.mediaUrl);
+      }
     };
-    load();
-  }, []);
-
-  // Prefetch active banners media to speed up first paint
-  useEffect(() => {
-    (async () => {
-      const active = await HomeBanner.filter({ isActive: true }, "-priority", 5);
-      active.forEach(b => {
-        if (b.mediaUrl && b.mediaType === "image") preloadImage(b.mediaUrl);
-      });
-    })();
+    loadBanner();
   }, []);
 
   const tiles = [

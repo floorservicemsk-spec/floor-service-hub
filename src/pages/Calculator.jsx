@@ -1,75 +1,36 @@
-
-import React, { useState, useEffect, Suspense, useCallback } from "react";
-import { KnowledgeBase } from "@/entities/KnowledgeBase";
+import React, { useState, useEffect, Suspense, useMemo, useDeferredValue } from "react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calculator as CalculatorIcon, Search, Package, Ruler, Archive } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { parseStock } from "@/components/sku/SkuUtils"; // Import the parser
+import { parseStock } from "@/components/sku/SkuUtils";
+import { useProductData } from "@/components/context/ProductDataContext";
+
 const ProductCalculator = React.lazy(() => import("../components/calculator/ProductCalculator"));
 
 export default function CalculatorPage() {
-  const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
+  const { calculatorProducts, loading } = useProductData();
   const [searchQuery, setSearchQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const deferredQuery = useDeferredValue(searchQuery);
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
-  const loadProducts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const knowledgeItems = await KnowledgeBase.filter({ type: 'xml_feed' });
-      
-      let allProducts = [];
-      for (const item of knowledgeItems) {
-        if (item.xml_data?.products) {
-          // Фильтруем только товары с необходимыми данными для калькулятора
-          const validProducts = item.xml_data.products.filter(product => {
-            const hasAreaParam = product.params && product.params['Кол-во м2 в упаковке'];
-            const hasPrice = product.price;
-            return hasAreaParam && hasPrice;
-          });
-          allProducts = [...allProducts, ...validProducts];
-        }
-      }
-      
-      setProducts(allProducts);
-    } catch (error) {
-      console.error("Ошибка загрузки товаров:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []); // Dependencies: setLoading and setProducts are stable setters, KnowledgeBase is an external import.
-
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
-
-  const filterProducts = useCallback(() => {
-    if (!searchQuery.trim()) {
-      setFilteredProducts(products);
-      return;
-    }
-
-    const query = searchQuery.toLowerCase();
-    const filtered = products.filter(product =>
+  const filteredProducts = useMemo(() => {
+    if (!deferredQuery.trim()) return calculatorProducts;
+    
+    const query = deferredQuery.toLowerCase();
+    return calculatorProducts.filter(product =>
       product.name?.toLowerCase().includes(query) ||
       product.vendorCode?.toLowerCase().includes(query) ||
       product.vendor?.toLowerCase().includes(query)
     );
-    setFilteredProducts(filtered);
-  }, [products, searchQuery]); // Dependencies: products and searchQuery
+  }, [calculatorProducts, deferredQuery]);
 
+  // Reset page when search changes
   useEffect(() => {
-    filterProducts();
-    // Reset page to 1 when products or search query changes
-    setPage(1); 
-  }, [filterProducts]); // Dependency: filterProducts (now memoized)
+    setPage(1);
+  }, [deferredQuery]);
 
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
