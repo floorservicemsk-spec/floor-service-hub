@@ -9,6 +9,7 @@ const ENV_LLM_MODEL = process.env.LLM_MODEL || "gpt-4o-mini";
 const PROVIDER_BASE_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   anthropic: "https://api.anthropic.com/v1",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
   // Add more providers as needed
 };
 

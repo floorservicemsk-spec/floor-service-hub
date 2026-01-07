@@ -53,6 +53,7 @@ interface AISettings {
 const PROVIDERS = [
   { value: "openai", label: "OpenAI", models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"] },
   { value: "anthropic", label: "Anthropic", models: ["claude-3-5-sonnet-20241022", "claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"] },
+  { value: "gemini", label: "Google Gemini", models: ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-1.5-pro"] },
   { value: "custom", label: "Custom (OpenAI-совместимый)", models: [] },
 ];
 
@@ -313,6 +314,9 @@ export default function SettingsManager() {
               )}
               {settings.provider === "anthropic" && (
                 <>Получить ключ: <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">console.anthropic.com</a></>
+              )}
+              {settings.provider === "gemini" && (
+                <>Получить ключ: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">aistudio.google.com</a></>
               )}
             </p>
           </div>
