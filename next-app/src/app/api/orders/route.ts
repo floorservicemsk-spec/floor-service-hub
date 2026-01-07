@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
@@ -34,5 +34,77 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching orders:", error);
     return NextResponse.json({ message: "Error fetching orders" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const {
+      orderNumber,
+      articleCode,
+      productName,
+      userName,
+      userEmail,
+      phoneNumber,
+      city,
+      retailPoint,
+      legalEntityId,
+      legalEntityName,
+      quantity,
+      totalCost,
+      comment,
+    } = body;
+
+    // Build the order item
+    const orderItem = {
+      articleCode,
+      productName,
+      quantity: parseInt(String(quantity), 10) || 1,
+      price: totalCost || 0,
+    };
+
+    // Create the order
+    const order = await prisma.order.create({
+      data: {
+        userId: user.id,
+        orderNumber: orderNumber || `ORD-${Date.now()}`,
+        status: "PENDING",
+        totalCost: Math.round(totalCost || 0),
+        items: [orderItem],
+        contactName: userName || null,
+        contactPhone: phoneNumber || null,
+        contactEmail: userEmail || null,
+        deliveryAddress: city ? `${city}${retailPoint ? `, ${retailPoint}` : ""}` : null,
+        comment: comment || null,
+        legalEntityId: legalEntityId || null,
+      },
+    });
+
+    // Update user profile info if provided
+    if (userName || phoneNumber || city || retailPoint) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          ...(userName && { fullName: userName }),
+          ...(phoneNumber && { phone: phoneNumber }),
+          ...(city && { city }),
+          ...(retailPoint && { retailPoint }),
+        },
+      });
+    }
+
+    return NextResponse.json({
+      id: order.id,
+      orderNumber: order.orderNumber,
+    });
+  } catch (error) {
+    console.error("Error creating order:", error);
+    return NextResponse.json({ message: "Error creating order" }, { status: 500 });
   }
 }

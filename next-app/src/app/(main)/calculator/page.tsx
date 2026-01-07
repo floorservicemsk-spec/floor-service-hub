@@ -219,7 +219,7 @@ function ProductCalculator({ product }: { product: Product }) {
               <SelectContent>
                 <SelectItem value="straight">Прямая укладка (+5%)</SelectItem>
                 <SelectItem value="diagonal">Диагональная укладка (+10%)</SelectItem>
-                <SelectItem value="herringbone">Укладка "ёлочкой" (+15%)</SelectItem>
+                <SelectItem value="herringbone">Укладка &quot;ёлочкой&quot; (+15%)</SelectItem>
               </SelectContent>
             </Select>
           </div>
