@@ -20,6 +20,7 @@ import {
   Palette,
   Building,
   History,
+  Home,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ import { useState } from "react";
 import { createPageUrl } from "@/lib/utils";
 
 const navigationItems = [
+  { title: "Главная", url: "/home", icon: Home },
   { title: "Чат", url: "/chat", icon: MessageSquare },
   { title: "База знаний", url: "/knowledgebase", icon: BookOpen },
   { title: "Советы", url: "/tips", icon: Lightbulb },

@@ -232,6 +232,7 @@ model FAQCategory {
   name                  String
   description           String?
   order                 Int       @default(0)
+  isActive              Boolean   @default(true) @map("is_active")
   
   faqs                  FAQ[]
   
@@ -248,8 +249,10 @@ model FAQ {
   
   question              String
   answer                String    @db.Text
+  keywords              String[]  @default([])
   order                 Int       @default(0)
   isActive              Boolean   @default(true) @map("is_active")
+  isPublished           Boolean   @default(true) @map("is_published")
   
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
@@ -262,6 +265,7 @@ model VideoCategory {
   name                  String
   description           String?
   order                 Int       @default(0)
+  isActive              Boolean   @default(true) @map("is_active")
   
   videos                Video[]
   
@@ -279,10 +283,14 @@ model Video {
   title                 String
   description           String?   @db.Text
   url                   String    // YouTube or other video URL
+  embedUrl              String?   @map("embed_url")
+  platform              String?   // youtube, rutube, vk
   thumbnailUrl          String?   @map("thumbnail_url")
   duration              String?   // e.g. "10:30"
   order                 Int       @default(0)
   isActive              Boolean   @default(true) @map("is_active")
+  isPublished           Boolean   @default(true) @map("is_published")
+  allowedUserTypes      String[]  @map("allowed_user_types") @default([])
   
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
@@ -324,9 +332,11 @@ model AdviceTag {
 
 model AdviceMedia {
   id                    String    @id @default(cuid())
-  articleId             String    @map("article_id")
-  article               AdviceArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId             String?   @map("article_id")
+  article               AdviceArticle? @relation("ArticleMedia", fields: [articleId], references: [id], onDelete: Cascade)
+  coverForArticles      AdviceArticle[] @relation("ArticleCover")
   
+  title                 String?
   type                  MediaType @default(IMAGE)
   url                   String
   caption               String?
@@ -346,18 +356,30 @@ model AdviceArticle {
   id                    String    @id @default(cuid())
   categoryId            String?   @map("category_id")
   category              AdviceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryIds           String[]  @map("category_ids") // Array of category IDs
   
   title                 String
   slug                  String    @unique
+  summary               String?   @db.Text
   excerpt               String?   @db.Text
+  html                  String?   @db.Text
   content               String    @db.Text
+  type                  String    @default("article") // article | checklist
   coverImageUrl         String?   @map("cover_image_url")
+  coverMediaId          String?   @map("cover_media_id")
+  coverMedia            AdviceMedia? @relation("ArticleCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  checklist             Json?     // Array of checklist items
+  attachmentIds         String[]  @map("attachment_ids") // Array of media IDs
+  allowedUserTypes      String[]  @map("allowed_user_types")
   
   tags                  AdviceTag[] @relation("ArticleTags")
-  media                 AdviceMedia[]
+  media                 AdviceMedia[] @relation("ArticleMedia")
   favorites             AdviceFavorite[]
   
+  isPublic              Boolean   @default(true) @map("is_public")
   isPublished           Boolean   @default(false) @map("is_published")
+  status                String    @default("DRAFT") // DRAFT | PUBLISHED
+  publishAt             DateTime? @map("publish_at")
   publishedAt           DateTime? @map("published_at")
   viewCount             Int       @default(0) @map("view_count")
   

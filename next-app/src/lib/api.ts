@@ -34,6 +34,8 @@ export interface DealerProfile {
   monthlyTurnover: number;
   lastMonthTurnover: number;
   ordersCountMonth: number;
+  effectiveTier?: string; // Computed field based on manual/current tier
+  currentMonthTurnover?: number; // Alias for monthlyTurnover
 }
 
 export interface BonusSettings {
@@ -220,6 +222,204 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify({ knowledgeBaseId }),
     });
+  }
+
+  // Profile
+  async updateProfile(data: {
+    displayName?: string;
+    phone?: string;
+    city?: string;
+    retailPoint?: string;
+  }): Promise<User> {
+    return this.request<User>("/api/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // FAQ
+  async getFAQs(): Promise<Array<{
+    id: string;
+    question: string;
+    answer: string;
+    categoryId?: string;
+    keywords?: string[];
+    order?: number;
+  }>> {
+    return this.request("/api/faq");
+  }
+
+  async getFAQCategories(): Promise<Array<{
+    id: string;
+    name: string;
+    order?: number;
+  }>> {
+    return this.request("/api/faq/categories");
+  }
+
+  // Video
+  async getVideos(): Promise<Array<{
+    id: string;
+    title: string;
+    description?: string;
+    embedUrl: string;
+    platform?: string;
+    categoryId?: string;
+    allowedUserTypes?: string[];
+    order?: number;
+  }>> {
+    return this.request("/api/video");
+  }
+
+  async getVideoCategories(): Promise<Array<{
+    id: string;
+    name: string;
+    order?: number;
+  }>> {
+    return this.request("/api/video/categories");
+  }
+
+  // Tips / Advice
+  async getAdviceArticles(): Promise<Array<{
+    id: string;
+    slug: string;
+    title: string;
+    summary?: string;
+    type: string;
+    coverUrl?: string;
+    categoryIds?: string[];
+    allowedUserTypes?: string[];
+    status?: string;
+  }>> {
+    return this.request("/api/advice/articles");
+  }
+
+  async getAdviceArticleBySlug(slug: string): Promise<{
+    id: string;
+    slug: string;
+    title: string;
+    summary?: string;
+    html?: string;
+    type: string;
+    coverUrl?: string;
+    checklist?: Array<{
+      title: string;
+      description?: string;
+      isRequired?: boolean;
+      order?: number;
+    }>;
+    attachments?: Array<{
+      id: string;
+      title?: string;
+      url: string;
+    }>;
+  } | null> {
+    return this.request(`/api/advice/articles/${encodeURIComponent(slug)}`);
+  }
+
+  async getAdviceCategories(): Promise<Array<{
+    id: string;
+    name: string;
+  }>> {
+    return this.request("/api/advice/categories");
+  }
+
+  // Legal Entities
+  async getLegalEntities(): Promise<Array<{
+    id: string;
+    name: string;
+    inn: string;
+    kpp?: string;
+    ogrn?: string;
+    address?: string;
+    isDefault?: boolean;
+  }>> {
+    return this.request("/api/legal-entities");
+  }
+
+  async createLegalEntity(data: {
+    name: string;
+    inn: string;
+    kpp?: string;
+    ogrn?: string;
+    address?: string;
+  }): Promise<{ id: string }> {
+    return this.request("/api/legal-entities", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateLegalEntity(id: string, data: {
+    name?: string;
+    inn?: string;
+    kpp?: string;
+    ogrn?: string;
+    address?: string;
+  }): Promise<{ success: boolean }> {
+    return this.request(`/api/legal-entities/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLegalEntity(id: string): Promise<{ success: boolean }> {
+    return this.request(`/api/legal-entities/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Orders
+  async getOrders(): Promise<Array<{
+    id: string;
+    orderNumber?: string;
+    status: string;
+    totalCost: number;
+    createdAt: string;
+    items?: Array<{
+      id: string;
+      productName: string;
+      quantity: number;
+      price: number;
+    }>;
+  }>> {
+    return this.request("/api/orders");
+  }
+
+  // Home Banners
+  async getHomeBanners(): Promise<Array<{
+    id: string;
+    title: string;
+    subtitle?: string;
+    mediaType: string;
+    mediaUrl?: string;
+    overlayGradient?: string;
+    isActive?: boolean;
+    startAt?: string;
+    endAt?: string;
+    priority?: number;
+    ctaPrimary?: {
+      label?: string;
+      href?: string;
+      isExternal?: boolean;
+    };
+    ctaSecondary?: {
+      label?: string;
+      href?: string;
+      isExternal?: boolean;
+    };
+  }>> {
+    return this.request("/api/home-banners");
+  }
+
+  // Leaderboard
+  async getDealerLeaderboard(): Promise<Array<{
+    userId: string;
+    name: string;
+    tier: string;
+    points: number;
+  }>> {
+    return this.request("/api/dealers/leaderboard");
   }
 }
 
