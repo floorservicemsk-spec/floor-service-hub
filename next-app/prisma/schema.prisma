@@ -166,7 +166,12 @@ model AISettings {
   id                    String    @id @default(cuid())
   systemPrompt          String?   @map("system_prompt") @db.Text
   
-  // LLM Configuration
+  // LLM Provider Configuration
+  provider              String    @default("openai") // openai, anthropic, custom
+  apiKey                String?   @map("api_key")    // API key for the provider
+  baseUrl               String?   @map("base_url")   // Custom API endpoint URL
+  
+  // LLM Model Configuration
   model                 String    @default("gpt-4o-mini")
   temperature           Float     @default(0.7)
   maxTokens             Int       @default(2048) @map("max_tokens")

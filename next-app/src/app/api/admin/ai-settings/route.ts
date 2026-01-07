@@ -17,8 +17,10 @@ export async function GET() {
     if (!settings) {
       settings = await prisma.aISettings.create({
         data: {
+          provider: "openai",
           model: "gpt-4o-mini",
           temperature: 0.7,
+          maxTokens: 2048,
           systemPrompt:
             "Вы - ИИ-ассистент, который помогает пользователям найти информацию в базе знаний компании. Отвечайте дружелюбно и профессионально на русском языке.",
           useOnlyKnowledgeBase: false,
@@ -27,13 +29,23 @@ export async function GET() {
       });
     }
 
+    // Mask API key for display (show only last 4 chars)
+    const maskedApiKey = settings.apiKey
+      ? `${"•".repeat(Math.max(0, settings.apiKey.length - 4))}${settings.apiKey.slice(-4)}`
+      : null;
+
     return NextResponse.json({
       id: settings.id,
+      provider: settings.provider,
+      apiKey: maskedApiKey, // Return masked key
+      hasApiKey: !!settings.apiKey, // Flag to show if key exists
+      baseUrl: settings.baseUrl,
       model: settings.model,
       temperature: settings.temperature,
+      maxTokens: settings.maxTokens,
       systemPrompt: settings.systemPrompt,
-      yandexDiskPath: settings.yandexDiskPath,
       welcomeMessage: settings.welcomeMessage,
+      yandexDiskPath: settings.yandexDiskPath,
       useOnlyKnowledgeBase: settings.useOnlyKnowledgeBase,
       enableExternalSearch: settings.enableExternalSearch,
     });
@@ -51,19 +63,30 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, ...data } = body;
+    const { id, apiKey, ...data } = body;
+
+    // Build update data
+    const updateData: Record<string, unknown> = {
+      provider: data.provider,
+      baseUrl: data.baseUrl,
+      model: data.model,
+      temperature: data.temperature,
+      maxTokens: data.maxTokens,
+      systemPrompt: data.systemPrompt,
+      welcomeMessage: data.welcomeMessage,
+      yandexDiskPath: data.yandexDiskPath,
+      useOnlyKnowledgeBase: data.useOnlyKnowledgeBase,
+      enableExternalSearch: data.enableExternalSearch,
+    };
+
+    // Only update API key if a new one is provided (not masked)
+    if (apiKey && !apiKey.includes("•")) {
+      updateData.apiKey = apiKey;
+    }
 
     await prisma.aISettings.update({
       where: { id },
-      data: {
-        model: data.model,
-        temperature: data.temperature,
-        systemPrompt: data.systemPrompt,
-        yandexDiskPath: data.yandexDiskPath,
-        welcomeMessage: data.welcomeMessage,
-        useOnlyKnowledgeBase: data.useOnlyKnowledgeBase,
-        enableExternalSearch: data.enableExternalSearch,
-      },
+      data: updateData,
     });
 
     return NextResponse.json({ success: true });

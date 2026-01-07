@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { invokeLLM } from "@/lib/llm";
+import { invokeLLM, AIProviderSettings } from "@/lib/llm";
 import { KnowledgeType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +54,17 @@ export async function POST(request: NextRequest) {
     // Load AI settings
     const aiSettingsArr = await prisma.aISettings.findMany({ take: 1 });
     const aiSettings = aiSettingsArr[0] || null;
+
+    // Prepare LLM settings
+    const llmSettings: AIProviderSettings = {
+      provider: aiSettings?.provider || "openai",
+      apiKey: aiSettings?.apiKey,
+      baseUrl: aiSettings?.baseUrl,
+      model: aiSettings?.model || "gpt-4o-mini",
+      temperature: aiSettings?.temperature || 0.7,
+      maxTokens: aiSettings?.maxTokens || 2048,
+      systemPrompt: aiSettings?.systemPrompt,
+    };
 
     // Load knowledge base items marked as AI source (excluding xml_feed)
     const aiKnowledgeBase = await prisma.knowledgeBase.findMany({
@@ -203,6 +213,7 @@ ${JSON.stringify(itemListForLLM, null, 2)}
           },
           required: ["relevant_titles"],
         },
+        settings: llmSettings,
       })) as { relevant_titles?: string[] };
 
       if (searchResult?.relevant_titles?.length) {
@@ -326,6 +337,7 @@ ${JSON.stringify(itemListForLLM, null, 2)}
       const textResponse = await invokeLLM({
         prompt,
         systemPrompt,
+        settings: llmSettings,
       });
 
       const aiAttachments = relevantItems
@@ -348,6 +360,7 @@ ${JSON.stringify(knowledgeItems.map((i) => i.title))}
 
     const clarificationResponse = await invokeLLM({
       prompt: clarificationPrompt,
+      settings: llmSettings,
     });
 
     return NextResponse.json({
