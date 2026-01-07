@@ -173,6 +173,9 @@ model AISettings {
   
   // Other settings
   welcomeMessage        String?   @map("welcome_message") @db.Text
+  yandexDiskPath        String?   @map("yandex_disk_path")
+  useOnlyKnowledgeBase  Boolean   @default(false) @map("use_only_knowledge_base")
+  enableExternalSearch  Boolean   @default(true) @map("enable_external_search")
   
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")

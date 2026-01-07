@@ -421,6 +421,13 @@ class ApiClient {
   }>> {
     return this.request("/api/dealers/leaderboard");
   }
+
+  // Admin - Compute dealer tiers
+  async computeDealerTiers(): Promise<{ success: boolean; updated?: number; error?: string }> {
+    return this.request("/api/admin/dealers/compute-tiers", {
+      method: "POST",
+    });
+  }
 }
 
 export const api = new ApiClient();
