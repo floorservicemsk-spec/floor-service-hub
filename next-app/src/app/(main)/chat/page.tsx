@@ -6,6 +6,8 @@ import React, {
   useLayoutEffect,
   useRef,
   useCallback,
+  useMemo,
+  memo,
 } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,30 @@ const ChatMessage = dynamic(() => import("@/components/chat/ChatMessage"), {
     <div className="animate-pulse bg-white/50 rounded-2xl h-20 w-full max-w-xl" />
   ),
   ssr: false,
+});
+
+// Memoized message list to prevent re-renders
+const MemoizedMessageList = memo(function MessageList({
+  messages,
+  tier,
+  bonusEnabled,
+}: {
+  messages: ChatMessageType[];
+  tier: string | null;
+  bonusEnabled: boolean;
+}) {
+  return (
+    <>
+      {messages.map((message) => (
+        <ChatMessage
+          key={message.id}
+          message={message}
+          tier={tier}
+          bonusEnabled={bonusEnabled}
+        />
+      ))}
+    </>
+  );
 });
 
 export default function ChatPage() {
@@ -359,14 +385,11 @@ export default function ChatPage() {
         className="flex-1 overflow-y-auto pt-0 md:pt-28 p-6 pb-32 space-y-6"
       >
         <AnimatePresence>
-          {messages.map((message) => (
-            <ChatMessage
-              key={message.id}
-              message={message}
-              tier={effectiveTier}
-              bonusEnabled={bonusEnabled}
-            />
-          ))}
+          <MemoizedMessageList
+            messages={messages}
+            tier={effectiveTier}
+            bonusEnabled={bonusEnabled}
+          />
         </AnimatePresence>
 
         {/* Streaming message preview */}

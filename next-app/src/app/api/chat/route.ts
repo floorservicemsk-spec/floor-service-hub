@@ -4,7 +4,9 @@ import { invokeLLM, AIProviderSettings } from "@/lib/llm";
 import { KnowledgeType } from "@prisma/client";
 import { withCache, aiSettingsCache, knowledgeBaseCache } from "@/lib/cache";
 import { checkRateLimit } from "@/lib/rate-limiter";
-import { queueAIRequest, aiQueue } from "@/lib/ai-queue";
+import { aiQueue } from "@/lib/ai-queue";
+import { aiResponseCache } from "@/lib/ai-cache";
+import { analyzeQuestion, getInstantResponse, getModelForRoute } from "@/lib/smart-router";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +87,31 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // === OPTIMIZATION 1: Instant responses for greetings ===
+    const instantResponse = getInstantResponse(message);
+    if (instantResponse) {
+      return NextResponse.json({
+        content: instantResponse,
+        attachments: [],
+        cached: true,
+        responseTime: 0,
+      });
+    }
+
+    // === OPTIMIZATION 2: Check semantic cache for similar questions ===
+    const cachedResponse = aiResponseCache.get(message);
+    if (cachedResponse) {
+      return NextResponse.json({
+        content: cachedResponse.response,
+        attachments: [],
+        cached: true,
+        cacheHit: true,
+      });
+    }
+
+    // === OPTIMIZATION 3: Smart routing ===
+    const routingDecision = analyzeQuestion(message);
 
     // Load AI settings with caching (1 minute TTL)
     const aiSettings = await withCache(
