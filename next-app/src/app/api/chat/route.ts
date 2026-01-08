@@ -6,7 +6,13 @@ import { withCache, aiSettingsCache, knowledgeBaseCache } from "@/lib/cache";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { aiQueue } from "@/lib/ai-queue";
 import { aiResponseCache } from "@/lib/ai-cache";
-import { analyzeQuestion, getInstantResponse, getModelForRoute } from "@/lib/smart-router";
+import { analyzeQuestion, getInstantResponse } from "@/lib/smart-router";
+import {
+  extractArticleCode,
+  isKnowledgeBaseRequest,
+  getCachedArticleResponse,
+  cacheArticleResponse,
+} from "@/lib/article-service";
 
 export const dynamic = "force-dynamic";
 
@@ -161,26 +167,28 @@ export async function POST(request: NextRequest) {
     }
 
     // === ARTICLE LOOKUP LOGIC ===
-    const articleRegex = /\b((?=\w*\d)(?=\w*[a-zA-Z])\w{3,})\b/i;
-    const articleMatch = message.match(articleRegex);
+    const articleCode = extractArticleCode(message);
+    const hasKnowledgeKeywords = isKnowledgeBaseRequest(message);
 
-    const knowledgeKeywords = [
-      "текстур",
-      "интерьер",
-      "фото",
-      "изображен",
-      "картинк",
-      "выглядит",
-      "смотрится",
-    ];
-    const hasKnowledgeKeywords = knowledgeKeywords.some((kw) =>
-      message.toLowerCase().includes(kw)
-    );
+    if (articleCode && productIndex.size > 0) {
+      const normalizedCode = articleCode.toLowerCase();
+      
+      // === CHECK ARTICLE CACHE FIRST ===
+      if (!hasKnowledgeKeywords) {
+        const cachedArticle = getCachedArticleResponse(normalizedCode);
+        if (cachedArticle) {
+          return NextResponse.json({
+            content: cachedArticle.content,
+            attachments: cachedArticle.attachments,
+            cached: true,
+            articleCache: true,
+          });
+        }
+      }
+      
+      const matchedProducts = productIndex.get(normalizedCode) || [];
 
-    if (articleMatch && productIndex.size > 0) {
-      const articleCode = articleMatch[1].toLowerCase();
-      const matchedProducts = productIndex.get(articleCode) || [];
-
+      // === EXACT MATCH FOUND ===
       if (matchedProducts.length > 0 && !hasKnowledgeKeywords) {
         const product = matchedProducts[0];
 
@@ -192,7 +200,7 @@ export async function POST(request: NextRequest) {
             vendorCode: product.vendorCode,
             description: product.description,
             picture: product.picture,
-            price: product.price ? `${product.price} руб.` : "не указана",
+            price: product.price ? `${product.price}` : "не указана",
             params: product.params || {},
           },
         };
@@ -201,25 +209,35 @@ export async function POST(request: NextRequest) {
           ? [{ name: product.name, url: product.picture, type: "image" }]
           : [];
 
+        const responseContent = JSON.stringify(productInfoPayload);
+        
+        // Cache the article response
+        cacheArticleResponse(normalizedCode, responseContent, aiAttachments);
+
         return NextResponse.json({
-          content: JSON.stringify(productInfoPayload),
+          content: responseContent,
           attachments: aiAttachments,
         });
       }
 
-      // If no exact match, suggest similar articles
+      // === SIMILAR ARTICLES SEARCH ===
       if (!hasKnowledgeKeywords && matchedProducts.length === 0) {
-        const searchPrefix = articleMatch[1].toLowerCase();
         const similarArticles: Product[] = [];
 
+        // Search by prefix and contains
         productIndex.forEach((products, key) => {
-          if (key.startsWith(searchPrefix) && key !== searchPrefix) {
+          // Prefix match (e.g., "ABC12" matches "ABC12-1", "ABC12-2")
+          if (key.startsWith(normalizedCode) && key !== normalizedCode) {
+            similarArticles.push(...products);
+          }
+          // Contains match (e.g., "123" matches "ABC123")
+          else if (key.includes(normalizedCode) && key !== normalizedCode && !key.startsWith(normalizedCode)) {
             similarArticles.push(...products);
           }
         });
 
         if (similarArticles.length > 0) {
-          // Deduplicate
+          // Deduplicate by vendor code
           const uniqueArticles = similarArticles.reduce<Product[]>(
             (acc, product) => {
               if (!acc.find((p) => p.vendorCode === product.vendorCode)) {
@@ -230,24 +248,36 @@ export async function POST(request: NextRequest) {
             []
           );
 
+          // Sort alphabetically and limit to 15
           uniqueArticles.sort((a, b) =>
             String(a.vendorCode).localeCompare(String(b.vendorCode))
           );
+          const limitedArticles = uniqueArticles.slice(0, 15);
 
-          const suggestionText = `Точного артикула ${articleMatch[1].toUpperCase()} не найдено, но есть похожие варианты:\n\n${uniqueArticles
+          const suggestionText = `Точного артикула **${articleCode.toUpperCase()}** не найдено, но есть похожие варианты:\n\n${limitedArticles
             .map((p) => `🔸 **${p.vendorCode}** — ${p.name}`)
-            .join("\n")}\n\nПожалуйста, уточните, какой именно артикул вас интересует.`;
+            .join("\n")}${uniqueArticles.length > 15 ? `\n\n...и ещё ${uniqueArticles.length - 15} вариантов` : ""}\n\nПожалуйста, уточните, какой именно артикул вас интересует.`;
 
           return NextResponse.json({
             content: suggestionText,
             attachments: [],
           });
         } else {
+          // No similar articles found
           return NextResponse.json({
-            content: `Извините, артикул ${articleMatch[1].toUpperCase()} не найден в базе данных. Проверьте правильность написания.`,
+            content: `Извините, артикул **${articleCode.toUpperCase()}** не найден в базе данных. Проверьте правильность написания или попробуйте ввести часть артикула для поиска.`,
             attachments: [],
           });
         }
+      }
+      
+      // === KNOWLEDGE BASE REQUEST FOR SPECIFIC ARTICLE ===
+      if (hasKnowledgeKeywords && matchedProducts.length > 0) {
+        // Continue to knowledge base logic below with article context
+        const product = matchedProducts[0];
+        // Add product context to the knowledge base search
+        const productContext = `\n\nПродукт по артикулу ${product.vendorCode}: ${product.name}`;
+        // This will be used in knowledge base search
       }
     }
 

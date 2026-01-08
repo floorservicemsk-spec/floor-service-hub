@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { UserProvider } from "@/components/context/UserContext";
 import { ProductDataProvider } from "@/components/context/ProductDataContext";
+import { ChatCacheProvider } from "@/components/context/ChatCacheContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -23,7 +24,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <UserProvider>
-          <ProductDataProvider>{children}</ProductDataProvider>
+          <ProductDataProvider>
+            <ChatCacheProvider>{children}</ChatCacheProvider>
+          </ProductDataProvider>
         </UserProvider>
       </QueryClientProvider>
     </SessionProvider>
