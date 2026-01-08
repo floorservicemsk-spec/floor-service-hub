@@ -3,17 +3,19 @@
 import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, Loader2 } from "lucide-react";
+import { MessageSquare, Loader2, CheckCircle } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/chat";
   const error = searchParams.get("error");
+  const registered = searchParams.get("registered");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,6 +61,13 @@ function LoginForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {registered && (
+              <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                Регистрация успешна! Теперь вы можете войти.
+              </div>
+            )}
+
             {errorMessage && (
               <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
                 {errorMessage}
@@ -102,14 +111,24 @@ function LoginForm() {
                   Вход...
                 </>
               ) : (
-            "Войти"
-          )}
-        </Button>
-      </form>
-    </CardContent>
-  </Card>
-</div>
-);
+                "Войти"
+              )}
+            </Button>
+
+            <div className="text-center text-sm text-slate-600">
+              Нет аккаунта?{" "}
+              <Link
+                href="/register"
+                className="text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Зарегистрироваться
+              </Link>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 export default function LoginPage() {

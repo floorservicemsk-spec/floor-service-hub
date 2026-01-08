@@ -145,15 +145,25 @@ class ApiClient {
     });
   }
 
-  async login(email: string, password: string): Promise<{ success: boolean }> {
-    return this.request("/api/auth/login", {
+  // Registration
+  async register(data: {
+    email: string;
+    password: string;
+    displayName?: string;
+    fullName?: string;
+    phone?: string;
+    city?: string;
+    userType?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    requiresApproval: boolean;
+    user?: { id: string; email: string; displayName: string | null; userType: string; isApproved: boolean };
+  }> {
+    return this.request("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(data),
     });
-  }
-
-  async logout(): Promise<void> {
-    await this.request("/api/auth/logout", { method: "POST" });
   }
 
   // Bonus Settings
