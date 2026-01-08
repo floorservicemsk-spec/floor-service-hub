@@ -4,6 +4,8 @@ import { compare, hash } from "bcryptjs";
 import prisma from "./prisma";
 
 export const authOptions: NextAuthOptions = {
+  debug: process.env.NODE_ENV === "development",
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
@@ -20,40 +22,56 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        console.log("[AUTH] Authorize called with email:", credentials?.email);
+        
         if (!credentials?.email || !credentials?.password) {
+          console.log("[AUTH] Missing credentials");
           throw new Error("Введите email и пароль");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
-          include: { dealerProfile: true },
-        });
+        try {
+          const user = await prisma.user.findUnique({
+            where: { email: credentials.email.toLowerCase() },
+            include: { dealerProfile: true },
+          });
 
-        if (!user) {
-          throw new Error("Пользователь не найден");
+          console.log("[AUTH] User found:", user ? user.email : "NOT FOUND");
+
+          if (!user) {
+            throw new Error("Пользователь не найден");
+          }
+
+          if (!user.password) {
+            console.log("[AUTH] User has no password");
+            throw new Error("Аккаунт не настроен для входа по паролю");
+          }
+
+          const isPasswordValid = await compare(credentials.password, user.password);
+          console.log("[AUTH] Password valid:", isPasswordValid);
+          
+          if (!isPasswordValid) {
+            throw new Error("Неверный пароль");
+          }
+
+          if (user.isBlocked) {
+            console.log("[AUTH] User is blocked");
+            throw new Error("Ваш аккаунт заблокирован");
+          }
+
+          console.log("[AUTH] Login successful for:", user.email);
+          
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.displayName || user.fullName || user.email,
+            role: user.role,
+            userType: user.userType,
+            isApproved: user.isApproved,
+          };
+        } catch (error) {
+          console.error("[AUTH] Error during authorization:", error);
+          throw error;
         }
-
-        if (!user.password) {
-          throw new Error("Аккаунт не настроен для входа по паролю");
-        }
-
-        const isPasswordValid = await compare(credentials.password, user.password);
-        if (!isPasswordValid) {
-          throw new Error("Неверный пароль");
-        }
-
-        if (user.isBlocked) {
-          throw new Error("Ваш аккаунт заблокирован");
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.displayName || user.fullName || user.email,
-          role: user.role,
-          userType: user.userType,
-          isApproved: user.isApproved,
-        };
       },
     }),
   ],
