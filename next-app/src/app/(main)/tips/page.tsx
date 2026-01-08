@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useDeferredValue } from "react";
+import React, { useEffect, useMemo, useState, useDeferredValue, useCallback } from "react";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import {
@@ -85,14 +85,14 @@ export default function TipsPage() {
     );
   };
 
-  const getUserType = () => user?.userType || "USER";
+  const getUserType = useCallback(() => user?.userType || "USER", [user?.userType]);
 
-  const canSeeArticle = (article: AdviceArticle) => {
+  const canSeeArticle = useCallback((article: AdviceArticle) => {
     if (user?.role === "ADMIN") return true;
     const allowed = article.allowedUserTypes;
     if (!allowed || allowed.length === 0) return true;
     return allowed.includes(getUserType());
-  };
+  }, [user?.role, getUserType]);
 
   const filtered = useMemo(() => {
     return articles.filter((a) => {
@@ -108,7 +108,7 @@ export default function TipsPage() {
         : true;
       return byType && byCat && bySearch;
     });
-  }, [articles, type, category, deferredQ, user]);
+  }, [articles, type, category, deferredQ, canSeeArticle]);
 
   const start = (page - 1) * pageSize;
   const end = start + pageSize;

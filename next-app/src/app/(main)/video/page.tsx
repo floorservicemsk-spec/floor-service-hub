@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -69,14 +69,14 @@ export default function VideoPage() {
     }
   };
 
-  const getUserType = () => user?.userType || "USER";
+  const getUserType = useCallback(() => user?.userType || "USER", [user?.userType]);
 
-  const canSeeVideo = (video: Video) => {
+  const canSeeVideo = useCallback((video: Video) => {
     if (user?.role === "ADMIN") return true;
     const allowed = video.allowedUserTypes;
     if (!allowed || allowed.length === 0) return true;
     return allowed.includes(getUserType());
-  };
+  }, [user?.role, getUserType]);
 
   const filteredVideos = useMemo(() => {
     let filtered = videos;
@@ -100,7 +100,7 @@ export default function VideoPage() {
     filtered = filtered.filter((video) => canSeeVideo(video));
 
     return filtered;
-  }, [videos, searchQuery, selectedCategory, user]);
+  }, [videos, searchQuery, selectedCategory, canSeeVideo]);
 
   useEffect(() => {
     setPage(1);

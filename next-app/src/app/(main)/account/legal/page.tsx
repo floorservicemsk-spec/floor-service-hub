@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -52,11 +52,7 @@ export default function AccountLegalPage() {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadEntities();
-  }, [user]);
-
-  const loadEntities = async () => {
+  const loadEntities = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
@@ -67,7 +63,11 @@ export default function AccountLegalPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadEntities();
+  }, [loadEntities]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;

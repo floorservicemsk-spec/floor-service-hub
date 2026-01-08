@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,13 +41,8 @@ export default function TipDetailPage() {
   const [checked, setChecked] = useState<Record<number, boolean>>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (slug) {
-      load();
-    }
-  }, [slug]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
+    if (!slug) return;
     setLoading(true);
     try {
       const data = await api.getAdviceArticleBySlug(decodeURIComponent(slug));
@@ -57,7 +52,11 @@ export default function TipDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [slug]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const onToggle = (idx: number) =>
     setChecked((prev) => ({ ...prev, [idx]: !prev[idx] }));

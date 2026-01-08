@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useDeferredValue } from "react";
+import React, { useState, useEffect, useMemo, useDeferredValue, useCallback } from "react";
 import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -79,31 +79,13 @@ function ProductCalculator({ product }: { product: Product }) {
     : null;
   const pricePerM2 = product.price || 0;
 
-  const reserveCoefficients: Record<string, number> = {
-    straight: 1.05,
-    diagonal: 1.1,
-    herringbone: 1.15,
-  };
+  const calculateResults = useCallback(() => {
+    const reserveCoefficients: Record<string, number> = {
+      straight: 1.05,
+      diagonal: 1.1,
+      herringbone: 1.15,
+    };
 
-  useEffect(() => {
-    calculateResults();
-  }, [state]);
-
-  const handleNumberInput = (value: string, field: keyof CalculatorState) => {
-    const sanitized = value.replace(/[^0-9.,]/g, "").replace(",", ".");
-    setState((prev) => ({ ...prev, [field]: sanitized }));
-  };
-
-  const handleDiscountInput = (value: string) => {
-    const sanitized = value.replace(/[^0-9.,]/g, "").replace(",", ".");
-    const numValue = parseFloat(sanitized) || 0;
-    setState((prev) => ({
-      ...prev,
-      discount: numValue > 10 ? "10" : sanitized,
-    }));
-  };
-
-  const calculateResults = () => {
     if (!areaPerPackage || !pricePerM2) return;
 
     const cleanArea = parseFloat(state.area) || 0;
@@ -139,6 +121,24 @@ function ProductCalculator({ product }: { product: Product }) {
       totalCost: Math.round(totalCost * 100) / 100,
       myEarnings: Math.round(earnings * 100) / 100,
     });
+  }, [state, areaPerPackage, pricePerM2]);
+
+  useEffect(() => {
+    calculateResults();
+  }, [calculateResults]);
+
+  const handleNumberInput = (value: string, field: keyof CalculatorState) => {
+    const sanitized = value.replace(/[^0-9.,]/g, "").replace(",", ".");
+    setState((prev) => ({ ...prev, [field]: sanitized }));
+  };
+
+  const handleDiscountInput = (value: string) => {
+    const sanitized = value.replace(/[^0-9.,]/g, "").replace(",", ".");
+    const numValue = parseFloat(sanitized) || 0;
+    setState((prev) => ({
+      ...prev,
+      discount: numValue > 10 ? "10" : sanitized,
+    }));
   };
 
   const clearCalculation = () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -54,11 +54,7 @@ export default function AccountOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadOrders();
-  }, [user]);
-
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     if (!user) return;
     try {
       setLoading(true);
@@ -69,7 +65,11 @@ export default function AccountOrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrder(expandedOrder === orderId ? null : orderId);
