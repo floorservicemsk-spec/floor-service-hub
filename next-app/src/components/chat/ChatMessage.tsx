@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   User,
@@ -570,11 +571,15 @@ const ProductInfoCard = ({ product }: { product: ProductInfoData }) => {
     <div className="bg-white min-h-full">
       {/* Image */}
       {product.picture && (
-        <div className="w-full">
-          <img
+        <div className="w-full relative h-48 md:h-64">
+          <Image
             src={product.picture}
             alt={product.name}
-            className="w-full h-48 md:h-64 object-cover block"
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 50vw"
+            priority={false}
+            unoptimized={product.picture.includes('http')}
           />
         </div>
       )}

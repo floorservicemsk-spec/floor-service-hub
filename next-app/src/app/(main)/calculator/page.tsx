@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useDeferredValue } from "react";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -442,11 +443,16 @@ export default function CalculatorPage() {
                           </div>
                         </div>
                         {product.picture && (
-                          <img
-                            src={product.picture}
-                            alt={product.name}
-                            className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                          />
+                          <div className="relative w-16 h-16 flex-shrink-0">
+                            <Image
+                              src={product.picture}
+                              alt={product.name}
+                              fill
+                              className="object-cover rounded-lg"
+                              sizes="64px"
+                              unoptimized
+                            />
+                          </div>
                         )}
                       </div>
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { KnowledgeType } from "@prisma/client";
+import { withCache, knowledgeBaseCache } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -37,11 +38,37 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const items = await prisma.knowledgeBase.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      take: limit ? parseInt(limit) : undefined,
-    });
+    // Use caching for public knowledge base queries (most common)
+    const cacheKey = `kb-${type || 'all'}-${isPublic}-${isAiSource}-${search || ''}-${limit || ''}`;
+    
+    const items = await withCache(
+      knowledgeBaseCache,
+      cacheKey,
+      () => prisma.knowledgeBase.findMany({
+        where,
+        orderBy: { updatedAt: "desc" },
+        take: limit ? parseInt(limit) : undefined,
+        // Only select needed fields for listing (excludes heavy content/xmlData)
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          content: true,
+          type: true,
+          url: true,
+          fileUrl: true,
+          imageUrl: true,
+          categories: true,
+          articleCode: true,
+          isPublic: true,
+          isAiSource: true,
+          xmlData: true,
+          lastSync: true,
+          updatedAt: true,
+        },
+      }),
+      5 * 60 * 1000 // 5 minutes cache
+    );
 
     return NextResponse.json(
       items.map((item) => ({

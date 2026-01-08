@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,12 +54,14 @@ function Banner({ data }: { data: HomeBanner }) {
     <div className="relative overflow-hidden rounded-3xl shadow-xl border border-white/20 mb-6 md:mb-8">
       <div className="relative h-[220px] md:h-[320px] w-full">
         {mediaType === "image" && mediaUrl && (
-          <img
+          <Image
             src={mediaUrl}
-            alt={title}
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 w-full h-full object-cover"
+            alt={title || "Banner"}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 80vw"
+            priority
+            unoptimized
           />
         )}
         {mediaType === "video" && mediaUrl && (

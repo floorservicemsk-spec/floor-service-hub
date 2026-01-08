@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState, useDeferredValue } from "react";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -184,12 +185,14 @@ export default function TipsPage() {
                   className="bg-white/70 border-white/20 overflow-hidden hover:shadow-xl transition-all"
                 >
                   {a.coverUrl ? (
-                    <div className="aspect-video w-full bg-slate-100">
-                      <img
+                    <div className="aspect-video w-full bg-slate-100 relative">
+                      <Image
                         src={a.coverUrl}
                         alt={a.title}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        unoptimized
                       />
                     </div>
                   ) : (

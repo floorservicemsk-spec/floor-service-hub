@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useRef } from "react";
+import NextImage from "next/image";
 import { parseColorText, colorDistance, parseStock } from "@/components/sku/SkuUtils";
 import { useProductData } from "@/components/context/ProductDataContext";
 import { Palette, Upload, Loader2, AlertCircle } from "lucide-react";
@@ -236,11 +237,16 @@ function ResultItem({
       <CardContent className="p-4">
         <div className="flex gap-4">
           {image && (
-            <img
-              src={image}
-              alt={name}
-              className="w-20 h-20 object-cover rounded-lg"
-            />
+            <div className="relative w-20 h-20 flex-shrink-0">
+              <NextImage
+                src={image}
+                alt={name}
+                fill
+                className="object-cover rounded-lg"
+                sizes="80px"
+                unoptimized
+              />
+            </div>
           )}
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-slate-900 mb-1 truncate">{name}</h3>
@@ -474,11 +480,16 @@ export default function SkuPickerPage() {
                       <span className="text-slate-600">Анализируем цвет...</span>
                     </div>
                   ) : imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt="Превью"
-                      className="max-h-40 rounded-xl shadow-lg"
-                    />
+                    <div className="relative w-full max-w-xs h-40">
+                      <NextImage
+                        src={imageUrl}
+                        alt="Превью"
+                        fill
+                        className="object-contain rounded-xl shadow-lg"
+                        sizes="320px"
+                        unoptimized
+                      />
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       <p className="text-slate-700">

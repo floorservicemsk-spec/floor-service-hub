@@ -5,23 +5,33 @@ import React, {
   useEffect,
   useLayoutEffect,
   useRef,
-  Suspense,
+  useCallback,
 } from "react";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, RotateCcw, Loader2, ArrowDown } from "lucide-react";
+import { Send, RotateCcw, Loader2, ArrowDown, StopCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@/components/context/UserContext";
 import { useProductData } from "@/components/context/ProductDataContext";
 import { api, ChatMessage as ChatMessageType } from "@/lib/api";
 import { generateSessionId } from "@/lib/utils";
-import ChatMessage from "@/components/chat/ChatMessage";
 import TypingIndicator from "@/components/chat/TypingIndicator";
+
+// Dynamic import for heavy ChatMessage component (reduces initial bundle)
+const ChatMessage = dynamic(() => import("@/components/chat/ChatMessage"), {
+  loading: () => (
+    <div className="animate-pulse bg-white/50 rounded-2xl h-20 w-full max-w-xl" />
+  ),
+  ssr: false,
+});
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
 
@@ -32,17 +42,18 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // --- Helpers ---
-  const isNearBottom = () => {
+  const isNearBottom = useCallback(() => {
     const container = chatContainerRef.current;
     if (!container) return true;
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
     return distanceFromBottom < 120;
-  };
+  }, []);
 
-  const scrollToBottom = (smooth = true) => {
+  const scrollToBottom = useCallback((smooth = true) => {
     const anchor = messagesEndRef.current;
     if (anchor) {
       anchor.scrollIntoView({
@@ -51,20 +62,21 @@ export default function ChatPage() {
       });
     }
     setShowScrollButton(false);
-  };
+  }, []);
 
   // --- Init ---
   useEffect(() => {
     initializeChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useLayoutEffect(() => {
-    if (isTyping || isNearBottom()) {
+    if (isTyping || isStreaming || isNearBottom()) {
       requestAnimationFrame(() =>
         requestAnimationFrame(() => scrollToBottom(true))
       );
     }
-  }, [messages, isTyping]);
+  }, [messages, isTyping, isStreaming, streamingContent, isNearBottom, scrollToBottom]);
 
   useEffect(() => {
     const container = chatContainerRef.current;
@@ -78,17 +90,18 @@ export default function ChatPage() {
     return () => {
       if (resizeObserverRef.current) resizeObserverRef.current.disconnect();
     };
-  }, []);
+  }, [isNearBottom, scrollToBottom]);
 
   useEffect(() => {
     if (user) {
       initializeChat();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     setShowScrollButton(!isNearBottom());
-  };
+  }, [isNearBottom]);
 
   const initializeChat = async () => {
     if (!user) return;
@@ -132,7 +145,8 @@ export default function ChatPage() {
     }
   };
 
-  const handleSendMessage = async () => {
+  // === STREAMING MESSAGE HANDLER ===
+  const handleSendMessageWithStreaming = async () => {
     if (!inputMessage.trim() || !sessionId) return;
 
     const userMessage: ChatMessageType = {
@@ -145,53 +159,163 @@ export default function ChatPage() {
 
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
+    const currentInput = inputMessage;
     setInputMessage("");
+
+    // First, try the regular chat API (handles products, downloads, etc.)
     setIsTyping(true);
 
     try {
       const response = await api.sendChatMessage({
-        message: inputMessage,
+        message: currentInput,
         sessionId,
         chatHistory: messages,
       });
 
+      // If we got a product_info or download response, use it directly
+      try {
+        const parsed = JSON.parse(response.content);
+        if (
+          parsed.type === "product_info" ||
+          parsed.type === "download_link" ||
+          parsed.type === "multi_download_links"
+        ) {
+          const assistantMessage: ChatMessageType = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: response.content,
+            timestamp: new Date().toISOString(),
+            attachments: response.attachments || [],
+          };
+
+          const finalMessages = [...updatedMessages, assistantMessage];
+          setMessages(finalMessages);
+          await saveChatSession(finalMessages);
+          setIsTyping(false);
+          return;
+        }
+      } catch {
+        // Not JSON, continue
+      }
+
+      // For text responses, use streaming for better UX
+      setIsTyping(false);
+      setIsStreaming(true);
+      setStreamingContent("");
+
+      // Abort any ongoing stream
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      const streamResponse = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: currentInput,
+          chatHistory: messages.slice(-5),
+        }),
+        signal: abortControllerRef.current.signal,
+      });
+
+      if (!streamResponse.ok) {
+        throw new Error("Stream failed");
+      }
+
+      const reader = streamResponse.body?.getReader();
+      if (!reader) throw new Error("No reader");
+
+      const decoder = new TextDecoder();
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) {
+                fullContent += data.content;
+                setStreamingContent(fullContent);
+              }
+            } catch {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      // Add final message
       const assistantMessage: ChatMessageType = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: response.content,
+        content: fullContent || response.content,
         timestamp: new Date().toISOString(),
-        attachments: response.attachments || [],
+        attachments: [],
       };
 
       const finalMessages = [...updatedMessages, assistantMessage];
       setMessages(finalMessages);
+      setStreamingContent("");
       await saveChatSession(finalMessages);
     } catch (error) {
-      console.error("Error getting response:", error);
-      const errorMessage: ChatMessageType = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content:
-          "Извините, произошла ошибка при обработке вашего запроса. Попробуйте ещё раз.",
-        timestamp: new Date().toISOString(),
-        attachments: [],
-      };
-      const finalMessages = [...updatedMessages, errorMessage];
-      setMessages(finalMessages);
+      if (error instanceof Error && error.name === "AbortError") {
+        // Stream was stopped
+        if (streamingContent) {
+          const assistantMessage: ChatMessageType = {
+            id: (Date.now() + 1).toString(),
+            role: "assistant",
+            content: streamingContent,
+            timestamp: new Date().toISOString(),
+            attachments: [],
+          };
+          const finalMessages = [...updatedMessages, assistantMessage];
+          setMessages(finalMessages);
+          await saveChatSession(finalMessages);
+        }
+      } else {
+        console.error("Error getting response:", error);
+        const errorMessage: ChatMessageType = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content:
+            "Извините, произошла ошибка при обработке вашего запроса. Попробуйте ещё раз.",
+          timestamp: new Date().toISOString(),
+          attachments: [],
+        };
+        const finalMessages = [...updatedMessages, errorMessage];
+        setMessages(finalMessages);
+      }
     } finally {
       setIsTyping(false);
+      setIsStreaming(false);
+      setStreamingContent("");
+      abortControllerRef.current = null;
     }
   };
+
+  const stopStreaming = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      handleSendMessageWithStreaming();
     }
   };
 
   const clearChat = async () => {
     setMessages([]);
+    setStreamingContent("");
     const newSessionId = generateSessionId();
     setSessionId(newSessionId);
     if (user) {
@@ -244,7 +368,29 @@ export default function ChatPage() {
             />
           ))}
         </AnimatePresence>
-        {isTyping && <TypingIndicator />}
+
+        {/* Streaming message preview */}
+        {isStreaming && streamingContent && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex gap-4"
+          >
+            <div className="w-10 h-10 rounded-full bg-white/80 border border-white/50 flex items-center justify-center flex-shrink-0 mt-2">
+              <Loader2 className="w-5 h-5 text-slate-600 animate-spin" />
+            </div>
+            <div className="flex-1 max-w-3xl">
+              <div className="bg-white rounded-2xl px-5 py-3 border border-white/60 shadow-sm">
+                <div className="prose prose-sm max-w-none prose-slate">
+                  {streamingContent}
+                  <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1" />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {isTyping && !isStreaming && <TypingIndicator />}
         <div ref={messagesEndRef} />
       </div>
 
@@ -281,21 +427,30 @@ export default function ChatPage() {
                 onKeyPress={handleKeyPress}
                 placeholder="Введите сообщение..."
                 className="min-h-[52px] max-h-[150px] bg-white/80 border-slate-200 focus:border-[#007AFF] focus:ring-[#007AFF]/20 rounded-xl resize-none w-full"
-                disabled={isTyping}
+                disabled={isTyping || isStreaming}
               />
             </div>
 
-            <Button
-              onClick={handleSendMessage}
-              disabled={!inputMessage.trim() || isTyping}
-              className="bg-gradient-to-r from-[#0A84FF] to-[#007AFF] hover:from-[#0A84FF] hover:to-[#0a6cff] text-white rounded-xl px-5 h-[52px] transition-all duration-300 shadow-lg disabled:opacity-50 flex items-center justify-center flex-shrink-0"
-            >
-              {isTyping ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Send className="w-5 h-5" />
-              )}
-            </Button>
+            {isStreaming ? (
+              <Button
+                onClick={stopStreaming}
+                className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-5 h-[52px] transition-all duration-300 shadow-lg flex items-center justify-center flex-shrink-0"
+              >
+                <StopCircle className="w-5 h-5" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSendMessageWithStreaming}
+                disabled={!inputMessage.trim() || isTyping}
+                className="bg-gradient-to-r from-[#0A84FF] to-[#007AFF] hover:from-[#0A84FF] hover:to-[#0a6cff] text-white rounded-xl px-5 h-[52px] transition-all duration-300 shadow-lg disabled:opacity-50 flex items-center justify-center flex-shrink-0"
+              >
+                {isTyping ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </div>

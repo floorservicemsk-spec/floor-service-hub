@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUser } from "@/components/context/UserContext";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPageUrl } from "@/lib/utils";
 
 const navigationItems = [
@@ -50,6 +50,7 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const {
     user,
@@ -136,6 +137,19 @@ export default function MainLayout({
 
   const chatIconBg = computeTierIconClass();
   const isActiveUrl = (url: string) => pathname === url;
+
+  // Prefetch critical pages for faster navigation
+  useEffect(() => {
+    if (!user) return;
+    
+    // Prefetch main navigation pages
+    const pagesToPrefetch = ['/chat', '/home', '/knowledgebase', '/calculator'];
+    pagesToPrefetch.forEach((page) => {
+      if (page !== pathname) {
+        router.prefetch(page);
+      }
+    });
+  }, [user, pathname, router]);
 
   if (loading) {
     return (

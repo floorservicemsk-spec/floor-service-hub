@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, CheckCircle2, Paperclip } from "lucide-react";
@@ -106,11 +107,15 @@ export default function TipDetailPage() {
         <div className="bg-white/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-lg overflow-hidden">
           {/* Cover */}
           {article.coverUrl && (
-            <div className="w-full aspect-video bg-slate-100">
-              <img
+            <div className="w-full aspect-video bg-slate-100 relative">
+              <Image
                 src={article.coverUrl}
                 alt={article.title}
-                className="w-full h-full object-cover"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 80vw"
+                priority
+                unoptimized
               />
             </div>
           )}
