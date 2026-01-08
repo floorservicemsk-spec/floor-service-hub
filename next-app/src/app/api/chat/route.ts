@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { invokeLLM, AIProviderSettings } from "@/lib/llm";
 import { KnowledgeType } from "@prisma/client";
-import { withCache, aiSettingsCache, knowledgeBaseCache, productIndexCache } from "@/lib/cache";
+import { withCache, aiSettingsCache, knowledgeBaseCache } from "@/lib/cache";
+import { checkRateLimit } from "@/lib/rate-limiter";
+import { queueAIRequest, aiQueue } from "@/lib/ai-queue";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,38 @@ interface KnowledgeItem {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting by session or IP
+    const clientId = request.headers.get("x-session-id") || 
+                     request.headers.get("x-forwarded-for") || 
+                     "anonymous";
+    
+    const rateLimit = checkRateLimit(clientId, "chat");
+    
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          message: "Слишком много запросов. Подождите немного.",
+          retryAfter: rateLimit.headers["X-RateLimit-Reset"],
+        },
+        { 
+          status: 429,
+          headers: rateLimit.headers,
+        }
+      );
+    }
+
+    // Check queue capacity
+    if (!aiQueue.hasCapacity()) {
+      const waitTime = aiQueue.getEstimatedWaitTime();
+      return NextResponse.json(
+        { 
+          message: "Сервис перегружен. Попробуйте через несколько секунд.",
+          estimatedWait: Math.ceil(waitTime / 1000),
+        },
+        { status: 503 }
+      );
+    }
+
     const body = await request.json();
     const { message, sessionId, chatHistory } = body as {
       message: string;
