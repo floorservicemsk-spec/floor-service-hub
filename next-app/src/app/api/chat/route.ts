@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { invokeLLM, AIProviderSettings } from "@/lib/llm";
 import { KnowledgeType } from "@prisma/client";
+import { withCache, aiSettingsCache, knowledgeBaseCache, productIndexCache } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -51,9 +52,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Load AI settings
-    const aiSettingsArr = await prisma.aISettings.findMany({ take: 1 });
-    const aiSettings = aiSettingsArr[0] || null;
+    // Load AI settings with caching (1 minute TTL)
+    const aiSettings = await withCache(
+      aiSettingsCache,
+      "ai-settings",
+      () => prisma.aISettings.findFirst()
+    );
 
     // Prepare LLM settings
     const llmSettings: AIProviderSettings = {
@@ -66,15 +70,19 @@ export async function POST(request: NextRequest) {
       systemPrompt: aiSettings?.systemPrompt,
     };
 
-    // Load knowledge base items marked as AI source (excluding xml_feed)
-    const aiKnowledgeBase = await prisma.knowledgeBase.findMany({
-      where: { isAiSource: true },
-    });
-
-    // Load XML feed products for article lookup
-    const xmlFeedItems = await prisma.knowledgeBase.findMany({
-      where: { type: KnowledgeType.XML_FEED },
-    });
+    // Load knowledge base and XML feed in parallel with caching
+    const [aiKnowledgeBase, xmlFeedItems] = await Promise.all([
+      withCache(
+        knowledgeBaseCache,
+        "ai-sources",
+        () => prisma.knowledgeBase.findMany({ where: { isAiSource: true } })
+      ),
+      withCache(
+        knowledgeBaseCache,
+        "xml-feeds",
+        () => prisma.knowledgeBase.findMany({ where: { type: KnowledgeType.XML_FEED } })
+      ),
+    ]);
 
     // Build product index
     const productIndex = new Map<string, Product[]>();

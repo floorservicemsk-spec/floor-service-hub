@@ -48,6 +48,10 @@ model User {
   adviceFavorites       AdviceFavorite[]
   quoteShareLogs        QuoteShareLog[]
   
+  // Performance indexes
+  @@index([isApproved, isBlocked])
+  @@index([role])
+  @@index([userType])
   @@map("users")
 }
 
@@ -159,6 +163,10 @@ model ChatSession {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   
+  // Performance indexes
+  @@index([userEmail])
+  @@index([lastActivity])
+  @@index([isActive, lastActivity])
   @@map("chat_sessions")
 }
 
@@ -221,6 +229,11 @@ model KnowledgeBase {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   
+  // Performance indexes
+  @@index([isAiSource])
+  @@index([type])
+  @@index([isPublic, isAiSource])
+  @@index([articleCode])
   @@map("knowledge_base")
 }
 
@@ -265,6 +278,9 @@ model FAQ {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   
+  // Performance indexes
+  @@index([categoryId])
+  @@index([isActive, isPublished])
   @@map("faqs")
 }
 
@@ -463,6 +479,11 @@ model Order {
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
   
+  // Performance indexes
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, status])
   @@map("orders")
 }
 
