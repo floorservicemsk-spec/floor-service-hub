@@ -1,0 +1,565 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTH & USERS
+// ============================================================================
+
+model User {
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  password              String?   // Hashed password for credentials auth
+  emailVerified         DateTime? @map("email_verified")
+  
+  // Profile fields
+  displayName           String?   @map("display_name")
+  fullName              String?   @map("full_name")
+  phone                 String?
+  city                  String?
+  retailPoint           String?   @map("retail_point")
+  
+  // Auth & access
+  role                  UserRole  @default(USER)
+  userType              UserType  @default(USER) @map("user_type")
+  isApproved            Boolean   @default(false) @map("is_approved")
+  isBlocked             Boolean   @default(false) @map("is_blocked")
+  approvalRequestedAt   DateTime? @map("approval_requested_at")
+  
+  // Session
+  sessionId             String?   @map("session_id")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  // Relations
+  dealerProfile         DealerProfile?
+  chatSessions          ChatSession[]
+  orders                Order[]
+  legalEntities         LegalEntity[]
+  adviceFavorites       AdviceFavorite[]
+  quoteShareLogs        QuoteShareLog[]
+  
+  // Performance indexes
+  @@index([isApproved, isBlocked])
+  @@index([role])
+  @@index([userType])
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum UserType {
+  USER
+  DEALER
+  MANAGER
+}
+
+// ============================================================================
+// DEALER & BONUS SYSTEM
+// ============================================================================
+
+model DealerProfile {
+  id                    String    @id @default(cuid())
+  userId                String    @unique @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  companyName           String?   @map("company_name")
+  region                String?
+  
+  // Tier system
+  currentTier           DealerTier @default(TIER1) @map("current_tier")
+  autoTier              DealerTier @default(TIER1) @map("auto_tier")
+  manualTier            DealerTier? @map("manual_tier")
+  manualTierEnabled     Boolean   @default(false) @map("manual_tier_enabled")
+  manualTierExpiresAt   DateTime? @map("manual_tier_expires_at")
+  
+  // Stats
+  pointsBalance         Int       @default(0) @map("points_balance")
+  monthlyTurnover       Int       @default(0) @map("monthly_turnover")
+  lastMonthTurnover     Int       @default(0) @map("last_month_turnover")
+  ordersCountMonth      Int       @default(0) @map("orders_count_month")
+  updatedMonth          String?   @map("updated_month") // e.g. "2024-01"
+  lastRecalculatedAt    DateTime? @map("last_recalculated_at")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  tierChangeLogs        DealerTierChangeLog[]
+  
+  @@map("dealer_profiles")
+}
+
+enum DealerTier {
+  TIER1  // Базовый
+  TIER2  // Серебряный
+  TIER3  // Золотой
+  TIER4  // Платиновый
+}
+
+model DealerTierChangeLog {
+  id                    String    @id @default(cuid())
+  dealerProfileId       String    @map("dealer_profile_id")
+  dealerProfile         DealerProfile @relation(fields: [dealerProfileId], references: [id], onDelete: Cascade)
+  
+  previousTier          DealerTier @map("previous_tier")
+  newTier               DealerTier @map("new_tier")
+  reason                String?
+  changedBy             String?   @map("changed_by") // admin user id
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  
+  @@map("dealer_tier_change_logs")
+}
+
+model BonusSettings {
+  id                    String    @id @default(cuid())
+  enabled               Boolean   @default(true)
+  
+  // Tier thresholds (in rubles)
+  tier1Threshold        Int       @default(0) @map("tier1_threshold")
+  tier2Threshold        Int       @default(500000) @map("tier2_threshold")
+  tier3Threshold        Int       @default(1000000) @map("tier3_threshold")
+  tier4Threshold        Int       @default(3000000) @map("tier4_threshold")
+  
+  // Tier names
+  tier1Name             String    @default("Базовый") @map("tier1_name")
+  tier2Name             String    @default("Серебряный") @map("tier2_name")
+  tier3Name             String    @default("Золотой") @map("tier3_name")
+  tier4Name             String    @default("Платиновый") @map("tier4_name")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("bonus_settings")
+}
+
+// ============================================================================
+// CHAT & AI
+// ============================================================================
+
+model ChatSession {
+  id                    String    @id @default(cuid())
+  sessionId             String    @unique @map("session_id")
+  userId                String?   @map("user_id")
+  user                  User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail             String?   @map("user_email")
+  
+  messages              Json      @default("[]") // Array of message objects
+  isActive              Boolean   @default(true) @map("is_active")
+  lastActivity          DateTime  @default(now()) @map("last_activity")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  // Performance indexes
+  @@index([userEmail])
+  @@index([lastActivity])
+  @@index([isActive, lastActivity])
+  @@map("chat_sessions")
+}
+
+model AISettings {
+  id                    String    @id @default(cuid())
+  systemPrompt          String?   @map("system_prompt") @db.Text
+  
+  // LLM Provider Configuration
+  provider              String    @default("openai") // openai, anthropic, custom
+  apiKey                String?   @map("api_key")    // API key for the provider
+  baseUrl               String?   @map("base_url")   // Custom API endpoint URL
+  
+  // LLM Model Configuration
+  model                 String    @default("gpt-4o-mini")
+  temperature           Float     @default(0.7)
+  maxTokens             Int       @default(2048) @map("max_tokens")
+  
+  // Other settings
+  welcomeMessage        String?   @map("welcome_message") @db.Text
+  yandexDiskPath        String?   @map("yandex_disk_path")
+  useOnlyKnowledgeBase  Boolean   @default(false) @map("use_only_knowledge_base")
+  enableExternalSearch  Boolean   @default(true) @map("enable_external_search")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("ai_settings")
+}
+
+// ============================================================================
+// KNOWLEDGE BASE
+// ============================================================================
+
+model KnowledgeBase {
+  id                    String    @id @default(cuid())
+  
+  // Content
+  title                 String
+  description           String?   @db.Text
+  content               String?   @db.Text
+  
+  // Type and source
+  type                  KnowledgeType @default(DOCUMENT)
+  url                   String?
+  fileUrl               String?   @map("file_url")
+  imageUrl              String?   @map("image_url")
+  
+  // Categorization
+  categories            String[]  @default([])
+  articleCode           String?   @map("article_code")
+  
+  // Visibility
+  isPublic              Boolean   @default(true) @map("is_public")
+  isAiSource            Boolean   @default(false) @map("is_ai_source")
+  
+  // XML Feed specific
+  xmlData               Json?     @map("xml_data") // For xml_feed type: { products: [], warehouses: {}, last_synced: "" }
+  lastSync              DateTime? @map("last_sync")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  // Performance indexes
+  @@index([isAiSource])
+  @@index([type])
+  @@index([isPublic, isAiSource])
+  @@index([articleCode])
+  @@map("knowledge_base")
+}
+
+enum KnowledgeType {
+  DOCUMENT
+  LINK
+  YANDEX_DISK
+  XML_FEED
+}
+
+// ============================================================================
+// FAQ & VIDEO
+// ============================================================================
+
+model FAQCategory {
+  id                    String    @id @default(cuid())
+  name                  String
+  description           String?
+  order                 Int       @default(0)
+  isActive              Boolean   @default(true) @map("is_active")
+  
+  faqs                  FAQ[]
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("faq_categories")
+}
+
+model FAQ {
+  id                    String    @id @default(cuid())
+  categoryId            String?   @map("category_id")
+  category              FAQCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  question              String
+  answer                String    @db.Text
+  keywords              String[]  @default([])
+  order                 Int       @default(0)
+  isActive              Boolean   @default(true) @map("is_active")
+  isPublished           Boolean   @default(true) @map("is_published")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  // Performance indexes
+  @@index([categoryId])
+  @@index([isActive, isPublished])
+  @@map("faqs")
+}
+
+model VideoCategory {
+  id                    String    @id @default(cuid())
+  name                  String
+  description           String?
+  order                 Int       @default(0)
+  isActive              Boolean   @default(true) @map("is_active")
+  
+  videos                Video[]
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("video_categories")
+}
+
+model Video {
+  id                    String    @id @default(cuid())
+  categoryId            String?   @map("category_id")
+  category              VideoCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  title                 String
+  description           String?   @db.Text
+  url                   String    // YouTube or other video URL
+  embedUrl              String?   @map("embed_url")
+  platform              String?   // youtube, rutube, vk
+  thumbnailUrl          String?   @map("thumbnail_url")
+  duration              String?   // e.g. "10:30"
+  order                 Int       @default(0)
+  isActive              Boolean   @default(true) @map("is_active")
+  isPublished           Boolean   @default(true) @map("is_published")
+  allowedUserTypes      String[]  @map("allowed_user_types") @default([])
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("videos")
+}
+
+// ============================================================================
+// ADVICE / TIPS
+// ============================================================================
+
+model AdviceCategory {
+  id                    String    @id @default(cuid())
+  name                  String
+  slug                  String    @unique
+  description           String?
+  imageUrl              String?   @map("image_url")
+  order                 Int       @default(0)
+  
+  articles              AdviceArticle[]
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("advice_categories")
+}
+
+model AdviceTag {
+  id                    String    @id @default(cuid())
+  name                  String    @unique
+  slug                  String    @unique
+  
+  articles              AdviceArticle[] @relation("ArticleTags")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  
+  @@map("advice_tags")
+}
+
+model AdviceMedia {
+  id                    String    @id @default(cuid())
+  articleId             String?   @map("article_id")
+  article               AdviceArticle? @relation("ArticleMedia", fields: [articleId], references: [id], onDelete: Cascade)
+  coverForArticles      AdviceArticle[] @relation("ArticleCover")
+  
+  title                 String?
+  type                  MediaType @default(IMAGE)
+  url                   String
+  caption               String?
+  order                 Int       @default(0)
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  
+  @@map("advice_media")
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model AdviceArticle {
+  id                    String    @id @default(cuid())
+  categoryId            String?   @map("category_id")
+  category              AdviceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryIds           String[]  @map("category_ids") // Array of category IDs
+  
+  title                 String
+  slug                  String    @unique
+  summary               String?   @db.Text
+  excerpt               String?   @db.Text
+  html                  String?   @db.Text
+  content               String    @db.Text
+  type                  String    @default("article") // article | checklist
+  coverImageUrl         String?   @map("cover_image_url")
+  coverMediaId          String?   @map("cover_media_id")
+  coverMedia            AdviceMedia? @relation("ArticleCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  checklist             Json?     // Array of checklist items
+  attachmentIds         String[]  @map("attachment_ids") // Array of media IDs
+  allowedUserTypes      String[]  @map("allowed_user_types")
+  
+  tags                  AdviceTag[] @relation("ArticleTags")
+  media                 AdviceMedia[] @relation("ArticleMedia")
+  favorites             AdviceFavorite[]
+  
+  isPublic              Boolean   @default(true) @map("is_public")
+  isPublished           Boolean   @default(false) @map("is_published")
+  status                String    @default("DRAFT") // DRAFT | PUBLISHED
+  publishAt             DateTime? @map("publish_at")
+  publishedAt           DateTime? @map("published_at")
+  viewCount             Int       @default(0) @map("view_count")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("advice_articles")
+}
+
+model AdviceFavorite {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  articleId             String    @map("article_id")
+  article               AdviceArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  
+  @@unique([userId, articleId])
+  @@map("advice_favorites")
+}
+
+// ============================================================================
+// ORDERS & LEGAL ENTITIES
+// ============================================================================
+
+model LegalEntity {
+  id                    String    @id @default(cuid())
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name                  String
+  inn                   String?
+  kpp                   String?
+  ogrn                  String?
+  address               String?
+  bankName              String?   @map("bank_name")
+  bik                   String?
+  accountNumber         String?   @map("account_number")
+  corrAccount           String?   @map("corr_account")
+  
+  isDefault             Boolean   @default(false) @map("is_default")
+  
+  orders                Order[]
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("legal_entities")
+}
+
+model Order {
+  id                    String    @id @default(cuid())
+  orderNumber           String    @unique @map("order_number")
+  
+  userId                String?   @map("user_id")
+  user                  User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  legalEntityId         String?   @map("legal_entity_id")
+  legalEntity           LegalEntity? @relation(fields: [legalEntityId], references: [id], onDelete: SetNull)
+  
+  // Order details
+  status                OrderStatus @default(PENDING)
+  items                 Json      @default("[]") // Array of order items
+  totalCost             Int       @default(0) @map("total_cost")
+  comment               String?   @db.Text
+  
+  // Contact
+  contactName           String?   @map("contact_name")
+  contactPhone          String?   @map("contact_phone")
+  contactEmail          String?   @map("contact_email")
+  deliveryAddress       String?   @map("delivery_address") @db.Text
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  // Performance indexes
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, status])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model QuoteShareLog {
+  id                    String    @id @default(cuid())
+  userId                String?   @map("user_id")
+  user                  User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  recipientEmail        String?   @map("recipient_email")
+  recipientPhone        String?   @map("recipient_phone")
+  shareMethod           String?   @map("share_method") // email, whatsapp, etc.
+  quoteData             Json?     @map("quote_data")
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  
+  @@map("quote_share_logs")
+}
+
+// ============================================================================
+// HOME & BANNERS
+// ============================================================================
+
+model HomeBanner {
+  id                    String    @id @default(cuid())
+  
+  isActive              Boolean   @default(true) @map("is_active")
+  startAt               DateTime? @map("start_at")
+  endAt                 DateTime? @map("end_at")
+  priority              Int       @default(0)
+  
+  // Media
+  mediaType             BannerMediaType @default(IMAGE) @map("media_type")
+  mediaUrl              String    @map("media_url")
+  overlayGradient       String?   @map("overlay_gradient")
+  
+  // Content
+  title                 String?
+  subtitle              String?
+  
+  // CTAs
+  ctaPrimary            Json?     @map("cta_primary") // { text: "", url: "" }
+  ctaSecondary          Json?     @map("cta_secondary") // { text: "", url: "" }
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("home_banners")
+}
+
+enum BannerMediaType {
+  IMAGE
+  VIDEO
+}
+
+// ============================================================================
+// INTEGRATIONS CONFIG
+// ============================================================================
+
+model IntegrationConfig {
+  id                    String    @id @default(cuid())
+  name                  String    @unique // e.g. "email", "whatsapp", "telegram"
+  
+  isEnabled             Boolean   @default(false) @map("is_enabled")
+  config                Json      @default("{}") // Provider-specific config
+  
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  
+  @@map("integration_configs")
+}
