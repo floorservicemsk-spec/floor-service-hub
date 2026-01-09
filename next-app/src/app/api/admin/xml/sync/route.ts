@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, getCurrentUser } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { XMLParser } from "fast-xml-parser";
 
-const parser = new XMLParser({
-  ignoreAttributes: false,
-  attributeNamePrefix: "@_",
-  textNodeName: "#text",
-  parseAttributeValue: true,
-  isArray: (name) =>
-    ["param", "warehouse", "quantity_in_stock", "price", "picture"].includes(
-      name
-    ),
-});
+// Force dynamic rendering - this route should never be statically analyzed
+export const dynamic = "force-dynamic";
+
+// Dynamic import to avoid build-time issues
+async function getXMLParser() {
+  const { XMLParser } = await import("fast-xml-parser");
+  return new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "@_",
+    textNodeName: "#text",
+    parseAttributeValue: true,
+    isArray: (name: string) =>
+      ["param", "warehouse", "quantity_in_stock", "price", "picture"].includes(
+        name
+      ),
+  });
+}
 
 function parseStock(text: string | null | undefined): {
   inStock: boolean;
@@ -134,6 +140,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`[syncXmlFeed] XML fetched, size: ${xmlText.length} bytes`);
 
+    const parser = await getXMLParser();
     const jsonObj = parser.parse(xmlText);
 
     // Hardcoded warehouse mapping
