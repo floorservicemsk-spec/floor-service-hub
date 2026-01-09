@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 // Force dynamic rendering - this route should never be statically analyzed
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
 
 // Dynamic import to avoid build-time issues
 async function getXMLParser() {
@@ -88,7 +93,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const item = await prisma.knowledgeBase.findUnique({
+    const item = await (await getPrisma()).knowledgeBase.findUnique({
       where: { id: knowledgeBaseId },
     });
 
@@ -421,7 +426,7 @@ export async function POST(request: NextRequest) {
       .join("\n\n---\n\n");
 
     // Update database
-    await prisma.knowledgeBase.update({
+    await (await getPrisma()).knowledgeBase.update({
       where: { id: knowledgeBaseId },
       data: {
         xmlData: {
