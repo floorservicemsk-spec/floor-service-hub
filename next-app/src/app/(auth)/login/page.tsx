@@ -35,8 +35,16 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        setErrorMessage(result.error);
-      } else {
+        // NextAuth returns generic "CredentialsSignin" for security
+        // We need to show a more helpful message
+        const errorMap: Record<string, string> = {
+          "CredentialsSignin": "Неверный email или пароль",
+          "Configuration": "Ошибка конфигурации сервера",
+          "AccessDenied": "Доступ запрещён",
+          "Verification": "Ошибка верификации",
+        };
+        setErrorMessage(errorMap[result.error] || result.error);
+      } else if (result?.ok) {
         router.push(callbackUrl);
         router.refresh();
       }

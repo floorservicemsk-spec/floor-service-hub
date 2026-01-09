@@ -16,7 +16,8 @@ export const authOptions: NextAuthOptions = {
   },
   providers: [
     CredentialsProvider({
-      name: "credentials",
+      id: "credentials",
+      name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
@@ -26,7 +27,7 @@ export const authOptions: NextAuthOptions = {
         
         if (!credentials?.email || !credentials?.password) {
           console.log("[AUTH] Missing credentials");
-          throw new Error("Введите email и пароль");
+          return null;
         }
 
         try {
@@ -38,24 +39,26 @@ export const authOptions: NextAuthOptions = {
           console.log("[AUTH] User found:", user ? user.email : "NOT FOUND");
 
           if (!user) {
-            throw new Error("Пользователь не найден");
+            console.log("[AUTH] User not found");
+            return null;
           }
 
           if (!user.password) {
             console.log("[AUTH] User has no password");
-            throw new Error("Аккаунт не настроен для входа по паролю");
+            return null;
           }
 
           const isPasswordValid = await compare(credentials.password, user.password);
           console.log("[AUTH] Password valid:", isPasswordValid);
           
           if (!isPasswordValid) {
-            throw new Error("Неверный пароль");
+            console.log("[AUTH] Invalid password");
+            return null;
           }
 
           if (user.isBlocked) {
             console.log("[AUTH] User is blocked");
-            throw new Error("Ваш аккаунт заблокирован");
+            return null;
           }
 
           console.log("[AUTH] Login successful for:", user.email);
@@ -69,8 +72,8 @@ export const authOptions: NextAuthOptions = {
             isApproved: user.isApproved,
           };
         } catch (error) {
-          console.error("[AUTH] Error during authorization:", error);
-          throw error;
+          console.error("[AUTH] Database error during authorization:", error);
+          return null;
         }
       },
     }),
