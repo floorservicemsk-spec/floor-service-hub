@@ -1,7 +1,12 @@
 import { NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare, hash } from "bcryptjs";
-import prisma from "./prisma";
+
+// Lazy prisma import to avoid build-time database connection
+async function getPrisma() {
+  const { default: prisma } = await import("./prisma");
+  return prisma;
+}
 
 export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV === "development",
@@ -23,46 +28,28 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.log("[AUTH] Authorize called with email:", credentials?.email);
-        
         if (!credentials?.email || !credentials?.password) {
-          console.log("[AUTH] Missing credentials");
           return null;
         }
 
         try {
+          const prisma = await getPrisma();
+          
           const user = await prisma.user.findUnique({
             where: { email: credentials.email.toLowerCase() },
             include: { dealerProfile: true },
           });
 
-          console.log("[AUTH] User found:", user ? user.email : "NOT FOUND");
-
-          if (!user) {
-            console.log("[AUTH] User not found");
-            return null;
-          }
-
-          if (!user.password) {
-            console.log("[AUTH] User has no password");
+          if (!user || !user.password) {
             return null;
           }
 
           const isPasswordValid = await compare(credentials.password, user.password);
-          console.log("[AUTH] Password valid:", isPasswordValid);
           
-          if (!isPasswordValid) {
-            console.log("[AUTH] Invalid password");
+          if (!isPasswordValid || user.isBlocked) {
             return null;
           }
 
-          if (user.isBlocked) {
-            console.log("[AUTH] User is blocked");
-            return null;
-          }
-
-          console.log("[AUTH] Login successful for:", user.email);
-          
           return {
             id: user.id,
             email: user.email,
@@ -72,7 +59,7 @@ export const authOptions: NextAuthOptions = {
             isApproved: user.isApproved,
           };
         } catch (error) {
-          console.error("[AUTH] Database error during authorization:", error);
+          console.error("[AUTH] Database error:", error);
           return null;
         }
       },
@@ -87,9 +74,8 @@ export const authOptions: NextAuthOptions = {
         token.isApproved = user.isApproved;
       }
       
-      // Handle session update
       if (trigger === "update" && session) {
-        token.isApproved = session.isApproved;
+        token.isApproved = session.isApproval;
       }
       
       return token;
@@ -114,6 +100,7 @@ export async function getCurrentUser() {
   const session = await getSession();
   if (!session?.user?.id) return null;
 
+  const prisma = await getPrisma();
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     include: { dealerProfile: true },

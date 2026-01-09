@@ -14,22 +14,20 @@ const globalForPrisma = globalThis as unknown as {
  * - connection_limit: 20-30 (PostgreSQL default max_connections is 100)
  * - pool_timeout: 10 (seconds to wait for connection)
  */
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+
+function createPrismaClient() {
+  return new PrismaClient({
     log: process.env.NODE_ENV === "development" 
-      ? ["error", "warn"] // Remove "query" in dev for performance
+      ? ["error", "warn"]
       : ["error"],
-    // Datasource configuration happens via DATABASE_URL
   });
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Lazy initialization - only create client when actually needed
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
-// Graceful shutdown handling
-if (typeof process !== "undefined") {
-  process.on("beforeExit", async () => {
-    await prisma.$disconnect();
-  });
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
 }
 
 export default prisma;
