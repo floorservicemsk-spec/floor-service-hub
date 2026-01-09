@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 import { DealerTier } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 // Tier thresholds based on monthly turnover
 const TIER_THRESHOLDS = {
@@ -28,7 +34,7 @@ export async function POST() {
     }
 
     // Get all dealer profiles
-    const profiles = await prisma.dealerProfile.findMany();
+    const profiles = await (await getPrisma()).dealerProfile.findMany();
 
     let updated = 0;
 
@@ -45,7 +51,7 @@ export async function POST() {
           newCurrentTier = profile.manualTier as DealerTier;
         } else {
           // Manual tier expired, disable it
-          await prisma.dealerProfile.update({
+          await (await getPrisma()).dealerProfile.update({
             where: { id: profile.id },
             data: {
               manualTierEnabled: false,
@@ -58,7 +64,7 @@ export async function POST() {
 
       // Update if changed
       if (profile.autoTier !== newAutoTier || profile.currentTier !== newCurrentTier) {
-        await prisma.dealerProfile.update({
+        await (await getPrisma()).dealerProfile.update({
           where: { id: profile.id },
           data: {
             autoTier: newAutoTier,

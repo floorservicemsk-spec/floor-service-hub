@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession, getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -91,7 +97,7 @@ export async function PATCH(request: NextRequest) {
       updateData.approvalRequestedAt = new Date(body.approvalRequestedAt);
     }
 
-    const user = await prisma.user.update({
+    const user = await (await getPrisma()).user.update({
       where: { id: session.user.id },
       data: updateData,
       include: { dealerProfile: true },

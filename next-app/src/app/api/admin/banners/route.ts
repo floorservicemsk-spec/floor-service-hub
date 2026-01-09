@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -11,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
     }
 
-    const banners = await prisma.homeBanner.findMany({
+    const banners = await (await getPrisma()).homeBanner.findMany({
       orderBy: { updatedAt: "desc" },
     });
 
@@ -46,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const banner = await prisma.homeBanner.create({
+    const banner = await (await getPrisma()).homeBanner.create({
       data: {
         title: body.title,
         subtitle: body.subtitle,
@@ -79,7 +85,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { id, ...data } = body;
 
-    await prisma.homeBanner.update({
+    await (await getPrisma()).homeBanner.update({
       where: { id },
       data: {
         ...data,
@@ -109,7 +115,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ message: "ID required" }, { status: 400 });
     }
 
-    await prisma.homeBanner.delete({ where: { id } });
+    await (await getPrisma()).homeBanner.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 // Simple in-memory cache for articles
 let articlesCache: { data: unknown; timestamp: number } | null = null;
@@ -16,7 +22,7 @@ export async function GET() {
       return NextResponse.json(articlesCache.data);
     }
 
-    const articles = await prisma.adviceArticle.findMany({
+    const articles = await (await getPrisma()).adviceArticle.findMany({
       where: { 
         status: "PUBLISHED",
         isPublic: true,

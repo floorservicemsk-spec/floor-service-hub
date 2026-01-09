@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
+
 export async function GET() {
   try {
-    const categories = await prisma.adviceCategory.findMany({
+    const categories = await (await getPrisma()).adviceCategory.findMany({
       orderBy: { name: "asc" },
     });
 

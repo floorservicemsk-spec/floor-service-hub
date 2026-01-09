@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function PATCH(
   request: NextRequest,
@@ -17,7 +23,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await request.json();
 
-    await prisma.knowledgeBase.update({
+    await (await getPrisma()).knowledgeBase.update({
       where: { id },
       data: {
         title: body.title,
@@ -53,7 +59,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    await prisma.knowledgeBase.delete({ where: { id } });
+    await (await getPrisma()).knowledgeBase.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

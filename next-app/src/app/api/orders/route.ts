@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -11,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ message: "Not authenticated" }, { status: 401 });
     }
 
-    const orders = await prisma.order.findMany({
+    const orders = await (await getPrisma()).order.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
     });
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Create the order
-    const order = await prisma.order.create({
+    const order = await (await getPrisma()).order.create({
       data: {
         userId: user.id,
         orderNumber: orderNumber || `ORD-${Date.now()}`,
@@ -88,7 +94,7 @@ export async function POST(request: NextRequest) {
 
     // Update user profile info if provided
     if (userName || phoneNumber || city || retailPoint) {
-      await prisma.user.update({
+      await (await getPrisma()).user.update({
         where: { id: user.id },
         data: {
           ...(userName && { fullName: userName }),

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hash } from "bcryptjs";
-import prisma from "@/lib/prisma";
 import { UserRole, UserType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -54,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await (await getPrisma()).user.findUnique({
       where: { email: email.toLowerCase() },
     });
 
@@ -74,7 +80,7 @@ export async function POST(request: NextRequest) {
     const isApproved = !requiresApproval;
 
     // Create user
-    const user = await prisma.user.create({
+    const user = await (await getPrisma()).user.create({
       data: {
         email: email.toLowerCase(),
         password: hashedPassword,
@@ -93,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     // If dealer, create dealer profile
     if (userType === "DEALER") {
-      await prisma.dealerProfile.create({
+      await (await getPrisma()).dealerProfile.create({
         data: {
           userId: user.id,
           companyName: null,

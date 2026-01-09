@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { compare } from "bcryptjs";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,11 +25,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Test database connection
-    const userCount = await prisma.user.count();
+    const userCount = await (await getPrisma()).user.count();
     console.log("[TEST AUTH] Total users in database:", userCount);
 
     // Find user
-    const user = await prisma.user.findUnique({
+    const user = await (await getPrisma()).user.findUnique({
       where: { email: email.toLowerCase() },
     });
 
@@ -76,8 +82,8 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     // Check database connection
-    const userCount = await prisma.user.count();
-    const users = await prisma.user.findMany({
+    const userCount = await (await getPrisma()).user.count();
+    const users = await (await getPrisma()).user.findMany({
       select: { email: true, isApproved: true, isBlocked: true, role: true }
     });
 

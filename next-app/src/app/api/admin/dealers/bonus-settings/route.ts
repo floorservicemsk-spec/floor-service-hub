@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -14,15 +20,15 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { enabled } = body;
 
-    let settings = await prisma.bonusSettings.findFirst();
+    let settings = await (await getPrisma()).bonusSettings.findFirst();
 
     if (settings) {
-      await prisma.bonusSettings.update({
+      await (await getPrisma()).bonusSettings.update({
         where: { id: settings.id },
         data: { enabled },
       });
     } else {
-      settings = await prisma.bonusSettings.create({
+      settings = await (await getPrisma()).bonusSettings.create({
         data: { enabled },
       });
     }

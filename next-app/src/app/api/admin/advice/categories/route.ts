@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +20,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, slug } = body;
 
-    const category = await prisma.adviceCategory.create({
+    const category = await (await getPrisma()).adviceCategory.create({
       data: { name, slug: slug || name.toLowerCase().replace(/\s+/g, "-") },
     });
 
@@ -39,7 +45,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ message: "ID required" }, { status: 400 });
     }
 
-    await prisma.adviceCategory.delete({ where: { id } });
+    await (await getPrisma()).adviceCategory.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

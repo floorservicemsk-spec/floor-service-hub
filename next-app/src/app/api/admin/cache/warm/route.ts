@@ -2,9 +2,15 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { aiResponseCache, COMMON_QUESTIONS } from "@/lib/ai-cache";
 import { withCache, knowledgeBaseCache, aiSettingsCache } from "@/lib/cache";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 /**
  * Cache warming endpoint
@@ -31,7 +37,7 @@ export async function POST() {
     const knowledgeItems = await withCache(
       knowledgeBaseCache,
       "ai-sources",
-      () => prisma.knowledgeBase.findMany({ where: { isAiSource: true } }),
+      async () => (await getPrisma()).knowledgeBase.findMany({ where: { isAiSource: true } }),
       10 * 60 * 1000 // 10 minutes
     );
     results.knowledgeBase = { itemsLoaded: knowledgeItems.length };
@@ -40,7 +46,7 @@ export async function POST() {
     const xmlFeeds = await withCache(
       knowledgeBaseCache,
       "xml-feeds",
-      () => prisma.knowledgeBase.findMany({ where: { type: "XML_FEED" } }),
+      async () => (await getPrisma()).knowledgeBase.findMany({ where: { type: "XML_FEED" } }),
       10 * 60 * 1000
     );
     
@@ -58,13 +64,13 @@ export async function POST() {
     const settings = await withCache(
       aiSettingsCache,
       "ai-settings",
-      () => prisma.aISettings.findFirst(),
+      async () => (await getPrisma()).aISettings.findFirst(),
       5 * 60 * 1000
     );
     results.aiSettings = { loaded: !!settings };
 
     // 5. Warm FAQ cache
-    const faqs = await prisma.fAQ.findMany({
+    const faqs = await (await getPrisma()).fAQ.findMany({
       where: { isPublished: true },
       take: 50,
     });

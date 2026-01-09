@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { rateLimiter } from "@/lib/rate-limiter";
 import { aiQueue } from "@/lib/ai-queue";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 /**
  * Health check endpoint for monitoring
@@ -18,7 +24,7 @@ export async function GET() {
     let dbLatency = 0;
     try {
       const dbStart = Date.now();
-      await prisma.$queryRaw`SELECT 1`;
+      await (await getPrisma()).$queryRaw`SELECT 1`;
       dbLatency = Date.now() - dbStart;
     } catch (error) {
       dbStatus = "error";

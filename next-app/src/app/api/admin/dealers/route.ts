@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 import { UserType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -13,12 +19,12 @@ export async function GET() {
     }
 
     const [dealers, bonusSettings] = await Promise.all([
-      prisma.user.findMany({
+      (await getPrisma()).user.findMany({
         where: { userType: UserType.DEALER },
         include: { dealerProfile: true },
         orderBy: { createdAt: "desc" },
       }),
-      prisma.bonusSettings.findFirst(),
+      (await getPrisma()).bonusSettings.findFirst(),
     ]);
 
     return NextResponse.json({
@@ -67,7 +73,7 @@ export async function PATCH(request: NextRequest) {
 
     if (profileId) {
       // Update existing profile
-      await prisma.dealerProfile.update({
+      await (await getPrisma()).dealerProfile.update({
         where: { id: profileId },
         data: {
           companyName: profileData.companyName,
@@ -85,7 +91,7 @@ export async function PATCH(request: NextRequest) {
       });
     } else if (userId) {
       // Create new profile
-      await prisma.dealerProfile.create({
+      await (await getPrisma()).dealerProfile.create({
         data: {
           userId,
           companyName: profileData.companyName,

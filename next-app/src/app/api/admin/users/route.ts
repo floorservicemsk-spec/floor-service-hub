@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -11,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
     }
 
-    const users = await prisma.user.findMany({
+    const users = await (await getPrisma()).user.findMany({
       orderBy: { createdAt: "desc" },
       include: { dealerProfile: true },
     });
@@ -57,7 +63,7 @@ export async function PATCH(request: NextRequest) {
     if (typeof isApproved === "boolean") updateData.isApproved = isApproved;
     if (typeof isBlocked === "boolean") updateData.isBlocked = isBlocked;
 
-    await prisma.user.update({
+    await (await getPrisma()).user.update({
       where: { id: userId },
       data: updateData,
     });

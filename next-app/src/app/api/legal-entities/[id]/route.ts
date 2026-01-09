@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function PATCH(
   request: NextRequest,
@@ -18,7 +24,7 @@ export async function PATCH(
     const body = await request.json();
 
     // Verify ownership
-    const entity = await prisma.legalEntity.findFirst({
+    const entity = await (await getPrisma()).legalEntity.findFirst({
       where: { id, userId: user.id },
     });
 
@@ -26,7 +32,7 @@ export async function PATCH(
       return NextResponse.json({ message: "Entity not found" }, { status: 404 });
     }
 
-    await prisma.legalEntity.update({
+    await (await getPrisma()).legalEntity.update({
       where: { id },
       data: {
         name: body.name ?? entity.name,
@@ -57,7 +63,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Verify ownership
-    const entity = await prisma.legalEntity.findFirst({
+    const entity = await (await getPrisma()).legalEntity.findFirst({
       where: { id, userId: user.id },
     });
 
@@ -65,7 +71,7 @@ export async function DELETE(
       return NextResponse.json({ message: "Entity not found" }, { status: 404 });
     }
 
-    await prisma.legalEntity.delete({ where: { id } });
+    await (await getPrisma()).legalEntity.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

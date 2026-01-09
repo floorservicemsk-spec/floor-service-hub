@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -11,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
     }
 
-    const sessions = await prisma.chatSession.findMany({
+    const sessions = await (await getPrisma()).chatSession.findMany({
       orderBy: { lastActivity: "desc" },
       take: 100,
     });

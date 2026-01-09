@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { KnowledgeType } from "@prisma/client";
 import { withCache, knowledgeBaseCache } from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,7 +50,7 @@ export async function GET(request: NextRequest) {
     const items = await withCache(
       knowledgeBaseCache,
       cacheKey,
-      () => prisma.knowledgeBase.findMany({
+      async () => (await getPrisma()).knowledgeBase.findMany({
         where,
         orderBy: { updatedAt: "desc" },
         take: limit ? parseInt(limit) : undefined,

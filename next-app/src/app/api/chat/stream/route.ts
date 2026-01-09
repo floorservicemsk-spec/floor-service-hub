@@ -1,11 +1,17 @@
 import { NextRequest } from "next/server";
-import prisma from "@/lib/prisma";
 import { createLLMStream, AIProviderSettings } from "@/lib/llm-stream";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { aiQueue } from "@/lib/ai-queue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 // Track active SSE connections
 let activeConnections = 0;
@@ -147,10 +153,22 @@ export async function POST(request: NextRequest) {
 }
 
 // Simple in-memory cache for AI settings
-let cachedSettings: {
-  data: Awaited<ReturnType<typeof prisma.aISettings.findFirst>> | null;
+interface CachedAISettings {
+  data: {
+    id: string;
+    systemPrompt: string | null;
+    provider: string;
+    apiKey: string | null;
+    baseUrl: string | null;
+    model: string;
+    temperature: number;
+    maxTokens: number;
+    welcomeMessage: string | null;
+  } | null;
   timestamp: number;
-} | null = null;
+}
+
+let cachedSettings: CachedAISettings | null = null;
 
 const CACHE_TTL = 60 * 1000; // 1 minute
 
@@ -161,7 +179,7 @@ async function getAISettings() {
     return cachedSettings.data;
   }
 
-  const settings = await prisma.aISettings.findFirst();
+  const settings = await (await getPrisma()).aISettings.findFirst();
   cachedSettings = { data: settings, timestamp: now };
 
   return settings;

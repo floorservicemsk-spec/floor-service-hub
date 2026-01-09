@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -12,8 +18,8 @@ export async function GET() {
     }
 
     const [videos, categories] = await Promise.all([
-      prisma.video.findMany({ orderBy: { order: "asc" } }),
-      prisma.videoCategory.findMany({ orderBy: { order: "asc" } }),
+      (await getPrisma()).video.findMany({ orderBy: { order: "asc" } }),
+      (await getPrisma()).videoCategory.findMany({ orderBy: { order: "asc" } }),
     ]);
 
     return NextResponse.json({
@@ -54,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const video = await prisma.video.create({
+    const video = await (await getPrisma()).video.create({
       data: {
         title: body.title,
         description: body.description,
@@ -86,7 +92,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { id, ...data } = body;
 
-    await prisma.video.update({
+    await (await getPrisma()).video.update({
       where: { id },
       data,
     });
@@ -112,7 +118,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ message: "ID required" }, { status: 400 });
     }
 
-    await prisma.video.delete({ where: { id } });
+    await (await getPrisma()).video.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

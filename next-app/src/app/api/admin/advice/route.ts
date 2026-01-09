@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -12,10 +18,10 @@ export async function GET() {
     }
 
     const [articles, categories] = await Promise.all([
-      prisma.adviceArticle.findMany({
+      (await getPrisma()).adviceArticle.findMany({
         orderBy: { updatedAt: "desc" },
       }),
-      prisma.adviceCategory.findMany({
+      (await getPrisma()).adviceCategory.findMany({
         orderBy: { name: "asc" },
       }),
     ]);
@@ -56,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    const article = await prisma.adviceArticle.create({
+    const article = await (await getPrisma()).adviceArticle.create({
       data: {
         title: body.title,
         slug: body.slug,
@@ -90,7 +96,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { id, ...data } = body;
 
-    await prisma.adviceArticle.update({
+    await (await getPrisma()).adviceArticle.update({
       where: { id },
       data: {
         title: data.title,
@@ -129,7 +135,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ message: "ID required" }, { status: 400 });
     }
 
-    await prisma.adviceArticle.delete({ where: { id } });
+    await (await getPrisma()).adviceArticle.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

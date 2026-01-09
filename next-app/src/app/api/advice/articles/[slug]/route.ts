@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET(
   request: NextRequest,
@@ -10,7 +16,7 @@ export async function GET(
   try {
     const { slug } = await params;
     
-    const article = await prisma.adviceArticle.findFirst({
+    const article = await (await getPrisma()).adviceArticle.findFirst({
       where: { slug: decodeURIComponent(slug) },
       include: {
         coverMedia: true,
@@ -24,7 +30,7 @@ export async function GET(
     // Get attachments if any
     let attachments: Array<{ id: string; title: string | null; url: string }> = [];
     if (article.attachmentIds && article.attachmentIds.length > 0) {
-      const media = await prisma.adviceMedia.findMany({
+      const media = await (await getPrisma()).adviceMedia.findMany({
         where: { id: { in: article.attachmentIds } },
       });
       attachments = media.map((m) => ({

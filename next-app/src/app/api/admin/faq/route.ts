@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -12,8 +18,8 @@ export async function GET() {
     }
 
     const [faqs, categories] = await Promise.all([
-      prisma.fAQ.findMany({ orderBy: { order: "asc" } }),
-      prisma.fAQCategory.findMany({ orderBy: { order: "asc" } }),
+      (await getPrisma()).fAQ.findMany({ orderBy: { order: "asc" } }),
+      (await getPrisma()).fAQCategory.findMany({ orderBy: { order: "asc" } }),
     ]);
 
     return NextResponse.json({
@@ -51,7 +57,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { question, answer, categoryId, keywords, order, isPublished } = body;
 
-    const faq = await prisma.fAQ.create({
+    const faq = await (await getPrisma()).fAQ.create({
       data: {
         question,
         answer,
@@ -79,7 +85,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { id, question, answer, categoryId, keywords, order, isActive, isPublished } = body;
 
-    await prisma.fAQ.update({
+    await (await getPrisma()).fAQ.update({
       where: { id },
       data: {
         question,
@@ -113,7 +119,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ message: "ID required" }, { status: 400 });
     }
 
-    await prisma.fAQ.delete({ where: { id } });
+    await (await getPrisma()).fAQ.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

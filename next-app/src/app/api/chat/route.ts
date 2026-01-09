@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { invokeLLM, AIProviderSettings } from "@/lib/llm";
 import { KnowledgeType } from "@prisma/client";
 import { withCache, aiSettingsCache, knowledgeBaseCache } from "@/lib/cache";
@@ -15,6 +14,13 @@ import {
 } from "@/lib/article-service";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 interface ChatMessage {
   id: string;
@@ -123,7 +129,7 @@ export async function POST(request: NextRequest) {
     const aiSettings = await withCache(
       aiSettingsCache,
       "ai-settings",
-      () => prisma.aISettings.findFirst()
+      async () => (await getPrisma()).aISettings.findFirst()
     );
 
     // Prepare LLM settings
@@ -142,12 +148,12 @@ export async function POST(request: NextRequest) {
       withCache(
         knowledgeBaseCache,
         "ai-sources",
-        () => prisma.knowledgeBase.findMany({ where: { isAiSource: true } })
+        async () => (await getPrisma()).knowledgeBase.findMany({ where: { isAiSource: true } })
       ),
       withCache(
         knowledgeBaseCache,
         "xml-feeds",
-        () => prisma.knowledgeBase.findMany({ where: { type: KnowledgeType.XML_FEED } })
+        async () => (await getPrisma()).knowledgeBase.findMany({ where: { type: KnowledgeType.XML_FEED } })
       ),
     ]);
 

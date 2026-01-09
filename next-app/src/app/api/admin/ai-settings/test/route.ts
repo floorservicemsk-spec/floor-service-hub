@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 import { testLLMConnection } from "@/lib/llm";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +24,7 @@ export async function POST(request: NextRequest) {
     // If no apiKey provided in request, try to get from DB
     let effectiveApiKey = apiKey;
     if (!effectiveApiKey || effectiveApiKey.includes("•")) {
-      const settings = await prisma.aISettings.findFirst();
+      const settings = await (await getPrisma()).aISettings.findFirst();
       effectiveApiKey = settings?.apiKey || null;
     }
 

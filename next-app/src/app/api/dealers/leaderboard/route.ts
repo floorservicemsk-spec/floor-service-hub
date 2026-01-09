@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
 import { UserType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
+
 export async function GET() {
   try {
     // Get all dealers with their profiles
-    const dealers = await prisma.user.findMany({
+    const dealers = await (await getPrisma()).user.findMany({
       where: { userType: UserType.DEALER },
       include: { dealerProfile: true },
     });

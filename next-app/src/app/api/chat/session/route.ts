@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +22,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const chatSession = await prisma.chatSession.findUnique({
+    const chatSession = await (await getPrisma()).chatSession.findUnique({
       where: { sessionId },
     });
 
@@ -57,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if session exists
-    const existingSession = await prisma.chatSession.findUnique({
+    const existingSession = await (await getPrisma()).chatSession.findUnique({
       where: { sessionId },
     });
 
@@ -65,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     if (existingSession) {
       // Update existing session
-      chatSession = await prisma.chatSession.update({
+      chatSession = await (await getPrisma()).chatSession.update({
         where: { sessionId },
         data: {
           messages,
@@ -75,7 +81,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Create new session
-      chatSession = await prisma.chatSession.create({
+      chatSession = await (await getPrisma()).chatSession.create({
         data: {
           sessionId,
           userId: session?.user?.id || null,

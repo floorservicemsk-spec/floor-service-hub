@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Lazy prisma import to avoid build-time issues
+const getPrisma = async () => {
+  const { default: prisma } = await import("@/lib/prisma");
+  return prisma;
+};
+
 
 export async function GET() {
   try {
@@ -11,11 +17,11 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
     }
 
-    let settings = await prisma.aISettings.findFirst();
+    let settings = await (await getPrisma()).aISettings.findFirst();
 
     // Create default settings if none exist
     if (!settings) {
-      settings = await prisma.aISettings.create({
+      settings = await (await getPrisma()).aISettings.create({
         data: {
           provider: "openai",
           model: "gpt-4o-mini",
@@ -84,7 +90,7 @@ export async function PATCH(request: NextRequest) {
       updateData.apiKey = apiKey;
     }
 
-    await prisma.aISettings.update({
+    await (await getPrisma()).aISettings.update({
       where: { id },
       data: updateData,
     });
